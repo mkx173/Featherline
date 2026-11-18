@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.security
 
 import android.app.Activity
 import android.app.KeyguardManager
+import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.biometric.BiometricPrompt
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -62,6 +63,58 @@ class AppAuthenticationPromptTest {
     }
 
     @Test
+    fun api29_aHostRecreatedUnderTheConfirmCredentialScreen_doesNotOpenASecondOne() {
+        // With a fingerprint enrolled the screen is transparent: the host is only paused, and a
+        // rotation recreates it at once, with no result yet. The ViewModel keeps the request.
+        RecreatedHost.request = unlockRequest()
+        val controller = Robolectric.buildActivity(RecreatedHost::class.java).setup()
+        composeRule.waitForIdle()
+        assertNotNull(shadowOf(controller.get()).nextStartedActivityForResult)
+
+        controller.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(
+            "The recreated host opened the credential screen again for the same request",
+            null,
+            shadowOf(controller.get()).nextStartedActivityForResult?.intent?.action,
+        )
+    }
+
+    @Test
+    fun api29_aNewRequestWithTheSameId_asAfterAProcessDeath_opensItsOwnScreen() {
+        RecreatedHost.request = unlockRequest()
+        val controller = Robolectric.buildActivity(RecreatedHost::class.java).setup()
+        composeRule.waitForIdle()
+        assertNotNull(shadowOf(controller.get()).nextStartedActivityForResult)
+
+        // Ids restart at 1 in the new process.
+        RecreatedHost.request = unlockRequest()
+        controller.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(
+            "android.app.action.CONFIRM_DEVICE_CREDENTIAL",
+            shadowOf(controller.get()).nextStartedActivityForResult?.intent?.action,
+        )
+    }
+
+    class RecreatedHost : FragmentActivity() {
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            shadowOf(getSystemService(KeyguardManager::class.java)).setIsDeviceSecure(true)
+            setContent {
+                AppAuthenticationPromptEffect(request = request, onAuthenticated = { }, onError = { })
+            }
+        }
+
+        companion object {
+            // As AppLockViewModel.pendingPrompt holds it across the recreation.
+            var request: AuthenticationPromptRequest? = null
+        }
+    }
+
+    @Test
     @Config(sdk = [30])
     fun api30_promptsWithBiometricPromptNotTheConfirmCredentialScreen() {
         val activity = launchPrompt()
@@ -79,11 +132,7 @@ class AppAuthenticationPromptTest {
         shadowOf(activity.getSystemService(KeyguardManager::class.java)).setIsDeviceSecure(true)
         activity.setContent {
             AppAuthenticationPromptEffect(
-                request = AuthenticationPromptRequest(
-                    id = 1,
-                    titleRes = R.string.unlock_app_prompt_title,
-                    subtitleRes = R.string.unlock_app_prompt_subtitle,
-                ),
+                request = unlockRequest(),
                 onAuthenticated = { authenticated += Unit },
                 onError = { errors += it },
             )
@@ -91,4 +140,10 @@ class AppAuthenticationPromptTest {
         composeRule.waitForIdle()
         return activity
     }
+
+    private fun unlockRequest() = AuthenticationPromptRequest(
+        id = 1,
+        titleRes = R.string.unlock_app_prompt_title,
+        subtitleRes = R.string.unlock_app_prompt_subtitle,
+    )
 }

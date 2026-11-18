@@ -163,29 +163,6 @@ class BackupRestoreService @Inject constructor(
         }
     }
 
-    suspend fun validateBackupFile(
-        fileUri: Uri,
-    ) = withContext(Dispatchers.IO) {
-        val encryptedBytes = readEncryptedBackupBytes(fileUri)
-        try {
-            validateBackupBytes(encryptedBytes)
-        } finally {
-            encryptedBytes.fill(0)
-        }
-    }
-
-    suspend fun restoreBackup(
-        fileUri: Uri,
-        password: String,
-    ) = withContext(Dispatchers.IO) {
-        val encryptedBytes = readEncryptedBackupBytes(fileUri)
-        try {
-            restoreBackupBytes(encryptedBytes, password)
-        } finally {
-            encryptedBytes.fill(0)
-        }
-    }
-
     suspend fun restoreBackupBytes(
         encryptedBytes: ByteArray,
         password: String,

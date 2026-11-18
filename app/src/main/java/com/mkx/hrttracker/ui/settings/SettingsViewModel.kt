@@ -538,26 +538,6 @@ class SettingsViewModel @Inject constructor(
         exportEvents.resetReplayCache()
     }
 
-    suspend fun restoreBackup(
-        fileUri: Uri,
-        password: String,
-    ) {
-        backupRestoreService.restoreBackup(
-            fileUri = fileUri,
-            password = password,
-        )
-    }
-
-    suspend fun restoreBackupBytes(
-        encryptedBytes: ByteArray,
-        password: String,
-    ) {
-        backupRestoreService.restoreBackupBytes(
-            encryptedBytes = encryptedBytes,
-            password = password,
-        )
-    }
-
     /**
      * Restore handler that survives configuration change. The restored
      * language and dark mode apply in place, but any other recreate would
@@ -631,12 +611,6 @@ class SettingsViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeExternalImportEvent() {
         externalImportEventsInternal.resetReplayCache()
-    }
-
-    suspend fun validateBackupFile(
-        fileUri: Uri,
-    ) {
-        backupRestoreService.validateBackupFile(fileUri)
     }
 
     /**

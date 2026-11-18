@@ -394,7 +394,11 @@ graph TD
   medication day at 04:00 (a night-owl plan's rows leave Today at
   04:00, whatever the plans are), whether it was built in another time
   zone (after westward travel its dates are ahead of today's, which the
-  date checks miss when the time-zone rebuild didn't publish), whether a section start
+  date checks miss when the time-zone rebuild didn't publish), whether
+  `now` is before its `builtAt` (the clock was set back in the same zone
+  and the time-change rebuild didn't publish: its statuses, sections and
+  dates may all be ahead of now's; the second pass of a fall-back hour
+  rebuilds once too), whether a section start
   (`nextWidgetDateRefreshAt`) passed after its `builtAt` (noon and
   18:00 move no date, so a late, missed or unarmed date alarm is caught
   here), whether any row's `UPCOMING`/`DUE_SOON` status should

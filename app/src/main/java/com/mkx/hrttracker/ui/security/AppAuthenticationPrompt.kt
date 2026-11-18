@@ -24,7 +24,16 @@ data class AuthenticationPromptRequest(
     @param:StringRes val titleRes: Int,
     @param:StringRes val subtitleRes: Int? = null,
     @param:StringRes val descriptionRes: Int? = null,
-)
+) {
+    /**
+     * Its confirm-credential screen was launched. The ViewModel keeps this instance across a
+     * recreation, so a host recreated under the screen (on API 29 a fingerprint makes it
+     * transparent, and the host is only paused) waits for its result instead of opening a second
+     * one. On the instance, not in saved state: ids restart after a process death, and the new
+     * process's request must open its own screen.
+     */
+    internal var launched = false
+}
 
 // Strings are resolved inside LaunchedEffect off the localized LocalContext (see
 // the body comments), where stringResource() isn't callable. The
@@ -65,7 +74,7 @@ fun AppAuthenticationPromptEffect(
     LaunchedEffect(request?.id) {
         val currentRequest = request ?: return@LaunchedEffect
         if (AppLockSecurityManager.USES_CONFIRM_CREDENTIAL_SCREEN) {
-            if (answeredRequestId.value == currentRequest.id) {
+            if (answeredRequestId.value == currentRequest.id || currentRequest.launched) {
                 return@LaunchedEffect
             }
             @Suppress("DEPRECATION") // In favour of BiometricPrompt, which drops the PIN on API 29.
@@ -78,6 +87,7 @@ fun AppAuthenticationPromptEffect(
             if (intent == null) {
                 currentOnError(BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL)
             } else {
+                currentRequest.launched = true
                 confirmCredential.launch(intent)
             }
             return@LaunchedEffect

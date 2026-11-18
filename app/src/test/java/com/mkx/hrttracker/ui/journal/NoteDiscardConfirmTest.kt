@@ -377,7 +377,7 @@ class NoteDiscardConfirmTest {
                     if (allNotesShown) {
                         AllNotesScreenContent(
                             uiState = AllNotesUiState(isLoading = false, today = june16, monthGroups = groups),
-                            onNavigateBack = { navigatedBack++ },
+                            onNavigateBack = { navigatedBack++; true },
                             onSaveNote = { _, _ -> allNotesSaves.start().also { allNotesSaveIds += it } },
                             noteSaves = allNotesSaves,
                             onDeleteNote = { deletes += it },

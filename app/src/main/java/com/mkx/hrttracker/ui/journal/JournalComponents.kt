@@ -2337,13 +2337,22 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
 
     /**
      * Runs [action], which closes the open editor and loses its draft, at once, or once the user
-     * discards the draft in the unsaved-changes dialog. [navigates]: [action] leaves the screen.
+     * discards the draft in the unsaved-changes dialog.
      */
-    fun askFirst(navigates: Boolean = false, action: () -> Unit) {
+    fun askFirst(action: () -> Unit) = askFirstToLeave { action(); false }
+
+    /**
+     * As [askFirst], for a [leave] of the screen that returns whether it navigated: a pop refused
+     * mid-transition keeps the page and its draft, so the draft goes on counting.
+     */
+    fun askFirstToLeave(leave: () -> Boolean) {
         val guard = unsavedChanges
-        if (guard == null || !hasUnsavedDraft) return action()
+        if (guard == null || !hasUnsavedDraft) {
+            leave()
+            return
+        }
         guard.update(this, true)
-        guard.leave(setOf(this)) { action(); navigates }
+        guard.leave(setOf(this), leave)
     }
 
     companion object {

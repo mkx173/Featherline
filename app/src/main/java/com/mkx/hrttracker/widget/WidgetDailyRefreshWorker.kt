@@ -24,11 +24,13 @@ class WidgetDailyRefreshWorker(
     override suspend fun doWork(): Result {
         val entryPoint =
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        // The record first: one written after the clock was read would look built after now.
+        val snapshot = entryPoint.widgetSnapshotStore().readSnapshot()
         val clockNow = Instant.now()
         handleWidgetDailyRefresh(
             now = LocalDateTime.ofInstant(clockNow, ZoneId.systemDefault()),
             clockNow = clockNow,
-            snapshot = entryPoint.widgetSnapshotStore().readSnapshot(),
+            snapshot = snapshot,
             homeSnapshotRepository = entryPoint.homeSnapshotRepository(),
             widgetSnapshotRepository = entryPoint.widgetSnapshotRepository(),
             e2EstimateRepository = entryPoint.e2EstimateRepository(),
@@ -49,7 +51,8 @@ class WidgetDailyRefreshWorker(
  *
  * The rows are stale once the calendar day or the medication day at 04:00
  * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are,
- * or once the time zone isn't the one they were built in.
+ * or once the time zone isn't the one they were built in, or the clock is before the time
+ * they were built at (set back since).
  * They are also stale once a section start passes after they were built:
  * noon and 18:00 move no date and may leave no row to turn stale, so this
  * run rebuilds what a late, missed or unarmed date alarm left. A dose
@@ -74,6 +77,11 @@ internal suspend fun handleWidgetDailyRefresh(
     // A record built in another zone is stale too: after westward travel its dates are ahead of
     // now's, which the date checks don't see.
     val anchorDateStale = snapshot?.let { it.zoneId != zoneId.id || it.isAnchoredBefore(now) } == true
+    // Built after now: the clock was set back in the same zone, and the time-change rebuild didn't
+    // publish. Its statuses, sections and dates may all be ahead of now's, which the checks above
+    // and below only look past.
+    // ponytail: wall-clock compare, so the second pass of a fall-back hour rebuilds once too.
+    val builtInTheFuture = snapshot?.let { now.isBefore(it.builtAt) } == true
     val doseStatusStale = snapshot?.doseRows?.any { row ->
         val pastDue = isPastDue(row.scheduledAt, now, zoneId, clockNow)
         when (row.status) {
@@ -93,7 +101,7 @@ internal suspend fun handleWidgetDailyRefresh(
         // only makes this ask for a redundant one.
         val gaveUp = (state?.homeData == null || state.e2Inputs == null) &&
             !homeSnapshotRepository.rebuilding.value
-        if (snapshot == null || anchorDateStale || doseStatusStale || notFromState || gaveUp) {
+        if (snapshot == null || anchorDateStale || builtInTheFuture || doseStatusStale || notFromState || gaveUp) {
             val written = try {
                 state?.let { widgetSnapshotRepository.writeWidgetSnapshot(it) } == true
             } catch (cancellation: CancellationException) {

@@ -137,7 +137,7 @@ class NoteEditorFailureRecoveryTest {
                         monthGroups = listOf(MonthGroupUiState(YearMonth.from(today), listOf(noteA, noteB))),
                         selectedDates = selected,
                     ),
-                    onNavigateBack = {},
+                    onNavigateBack = { true },
                     onSaveNote = sendSave,
                     noteSaves = noteSaves,
                 )

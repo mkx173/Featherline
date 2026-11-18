@@ -34,6 +34,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -140,14 +141,49 @@ class WidgetDailyRefreshWorkerTest {
     }
 
     @Test
+    fun aRecordBuiltAfterNow_isRebuilt_asAfterTheClockWasSetBackInTheSameZone() = runTest {
+        // The time-change rebuild didn't publish (a database error, or the process killed first).
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+        val overdue = widget(
+            builtAt = today.atTime(11, 10),
+            rows = listOf(row(WidgetDoseStatus.OVERDUE, today.atTime(10, 0))),
+        )
+
+        // Control: at the moment it was built the record is fresh, and only re-rendered.
+        refresh(overdue, at = today.atTime(11, 10))
+        assertEquals(1, rerenders)
+
+        // Set back to 08:45: the 10:00 dose is upcoming again.
+        refresh(overdue, at = today.atTime(8, 45))
+        // Set back across the 18:00 section start, with no row to turn stale.
+        refresh(widget(builtAt = today.atTime(18, 15)), at = today.atTime(17, 50))
+        // Set back to the evening before: its dates are ahead of now's.
+        refresh(widget(builtAt = today.atTime(0, 30)), at = today.minusDays(1).atTime(23, 50))
+
+        coVerify(exactly = 3) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+        assertEquals(1, rerenders)
+    }
+
+    @Test
+    fun doWork_readsTheRecordBeforeTheClock() {
+        // A widget write between the two reads would otherwise look built after now, and be
+        // rewritten for nothing. doWork needs the Hilt entry point, so this reads its source.
+        var root = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
+        while (!File(root, "settings.gradle.kts").exists()) root = requireNotNull(root.parentFile)
+        val doWork = File(root, "app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt")
+            .readText().substringAfter("override suspend fun doWork()").substringBefore("handleWidgetDailyRefresh(")
+        assertTrue(doWork.indexOf("readSnapshot()") in 0 until doWork.indexOf("Instant.now()"))
+    }
+
+    @Test
     fun aRecordNotBuiltFromTheCurrentState_isRewrittenFromIt_asAfterAWidgetWriteThatThrew() = runTest {
         coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
         val stamp = now.atZone(zoneId).toInstant().toEpochMilli()
         val published = state.copy(homeData = state.homeData?.copy(generatedAtEpochMillis = stamp))
         coEvery { homeSnapshotRepository.currentState() } returns published
 
-        // Built from the state before, even if later by the clock; the publish's own write threw.
-        refresh(widget(builtAt = now.plusMinutes(1), source = stamp - 1))
+        // Built from the state before, at this very minute; the publish's own write threw.
+        refresh(widget(builtAt = now, source = stamp - 1))
         // A record from before the stamp existed.
         refresh(widget(source = null))
         // Built from it, even if earlier by the clock (set back since).
@@ -333,6 +369,11 @@ class WidgetDailyRefreshWorkerTest {
             refresh(builtInTokyo, at = inLosAngeles)
             assertEquals(0, rerenders)
             coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+            // Once the wall clock has passed builtAt, on the record's own date and before its next
+            // section start, only the zone tells it apart.
+            refresh(builtInTokyo, at = today.plusDays(1).atTime(9, 0))
+            assertEquals(0, rerenders)
+            coVerify(exactly = 2) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
 
             // The same record in its own zone is fresh: only re-rendered.
             TimeZone.setDefault(TimeZone.getTimeZone(tokyo))

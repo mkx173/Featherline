@@ -776,7 +776,7 @@ fun MilestonesScreenContent(
 
 @Composable
 fun AllNotesScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateBack: () -> Boolean,
     modifier: Modifier = Modifier,
     viewModel: AllNotesViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -834,7 +834,7 @@ fun AllNotesScreen(
 @Composable
 fun AllNotesScreenContent(
     uiState: AllNotesUiState,
-    onNavigateBack: () -> Unit,
+    onNavigateBack: () -> Boolean,
     // Sends a save and returns its id in [noteSaves], as JournalScreenContent's do.
     onSaveNote: (LocalDate, String) -> Long,
     noteSaves: NoteSaves,
@@ -1054,7 +1054,7 @@ fun AllNotesScreenContent(
                     FlipSlot(
                         flipped = uiState.isSelectionMode,
                         front = {
-                            IconButton(onClick = { editorController.askFirst(navigates = true, action = onNavigateBack) }) {
+                            IconButton(onClick = { editorController.askFirstToLeave(onNavigateBack) }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = stringResource(R.string.navigate_back),

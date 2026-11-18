@@ -200,18 +200,6 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun validateBackupFile_delegatesToBackupRestoreService() = runTest {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        val uri: Uri = mockk()
-        coEvery { backupRestoreService.validateBackupFile(uri) } just Runs
-
-        viewModel.validateBackupFile(uri)
-
-        coVerify(exactly = 1) { backupRestoreService.validateBackupFile(uri) }
-    }
-
-    @Test
     fun loadExternalImportPreview_storesPreviewAndPerformsNoWrites() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()

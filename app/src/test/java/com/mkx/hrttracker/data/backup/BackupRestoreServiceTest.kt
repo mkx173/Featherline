@@ -640,15 +640,12 @@ class BackupRestoreServiceTest {
 
     @Test
     fun restoreBackup_clearsTheSkips_andReconcilesWithARepost_afterRestoringTheSnapshot() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
-                password = "password".toCharArray(),
-            )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 
         // The skips first, then a forced reconcile that reposts what's on screen (B3, B11).
         coVerifyOrder {
@@ -816,7 +813,6 @@ class BackupRestoreServiceTest {
 
     @Test
     fun restoreBackup_keepsTheUnitOfAProfileWithoutAWeight() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
         val snapshot = emptySnapshot().copy(
             userProfile = BackupUserProfileSnapshot(
                 weightKg = null,
@@ -824,14 +820,12 @@ class BackupRestoreServiceTest {
                 weightOriginalUnit = "POUNDS",
             ),
         )
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(snapshot),
-                password = "password".toCharArray(),
-            )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 
         // A later Health Connect reading then shows in lb, as after clearWeight.
         coVerify(exactly = 1) {
@@ -843,7 +837,6 @@ class BackupRestoreServiceTest {
 
     @Test
     fun restoreBackup_fallsBackToKilograms_forAProfileWithoutAWeightAndAnUnknownUnit() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
         val snapshot = emptySnapshot().copy(
             userProfile = BackupUserProfileSnapshot(
                 weightKg = null,
@@ -851,14 +844,12 @@ class BackupRestoreServiceTest {
                 weightOriginalUnit = "stone",
             ),
         )
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(snapshot),
-                password = "password".toCharArray(),
-            )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 
         coVerify(exactly = 1) {
             userProfileDao.upsertProfile(
@@ -957,16 +948,8 @@ class BackupRestoreServiceTest {
     )
 
     @Test
-    fun validateBackupFile_accepts_supported_backup_container() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
-                password = "password".toCharArray(),
-            )
-        )
-
-        service.validateBackupFile(fileUri)
+    fun validateBackupBytes_accepts_supported_backup_container() = runTest {
+        service.validateBackupBytes(emptySnapshotBytes())
     }
 
     @Test
@@ -991,15 +974,10 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun validateBackupFile_rejects_non_backup_input_before_password_prompt() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            "not a backup".encodeToByteArray()
-        )
-
+    fun validateBackupBytes_rejects_non_backup_input_before_password_prompt() = runTest {
         val error = try {
-            service.validateBackupFile(fileUri)
-            fail("Expected validateBackupFile to reject non-backup input.")
+            service.validateBackupBytes("not a backup".encodeToByteArray())
+            fail("Expected validateBackupBytes to reject non-backup input.")
             null
         } catch (error: IOException) {
             error
