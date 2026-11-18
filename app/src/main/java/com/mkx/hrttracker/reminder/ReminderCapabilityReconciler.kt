@@ -100,8 +100,12 @@ class ReminderCapabilityReconciler @Inject constructor(
         var disabledReminders = false
         if (!snapshot.hasNotificationAccess) {
             val currentSettings = settingsRepository.getCurrentSettings()
-            if (currentSettings.remindersEnabled) {
-                settingsRepository.setRemindersEnabled(false)
+            // Access is checked again inside the write: a grant that lands after the snapshot
+            // above, with its switch-on, keeps reminders on.
+            if (
+                currentSettings.remindersEnabled &&
+                settingsRepository.turnRemindersOffUnless { canPostNotifications(context) }
+            ) {
                 disabledReminders = true
                 diagnosticsLogger.info(
                     TAG,

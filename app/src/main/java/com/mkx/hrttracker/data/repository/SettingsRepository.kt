@@ -468,6 +468,22 @@ class SettingsRepository internal constructor(
         }
     }
 
+    /**
+     * Turns reminders off unless [allowed] is true by the time this write runs. The check sits
+     * inside the write, so a grant's own setRemindersEnabled(true) is ordered with it: that write
+     * comes after this one, or this one sees the grant and leaves the switch alone.
+     */
+    suspend fun turnRemindersOffUnless(allowed: () -> Boolean): Boolean {
+        var turnedOff = false
+        activeDataStore().edit { preferences ->
+            if ((preferences[remindersEnabledKey] ?: true) && !allowed()) {
+                preferences[remindersEnabledKey] = false
+                turnedOff = true
+            }
+        }
+        return turnedOff
+    }
+
     suspend fun setReminderRepeats(repeats: ReminderRepeats) {
         require(repeats.isValid()) { "Unsupported reminder repeats: $repeats" }
         activeDataStore().edit { preferences ->

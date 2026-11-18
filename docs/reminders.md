@@ -333,7 +333,9 @@ rebuild.
   defer them; the reconciler exposes `hasExactAlarmAccess = false` so
   Settings can offer a fix. The repeats are as late as their alarms.
 - **Notification permission denied.** Posts are skipped, and the
-  reconciler turns the master switch off.
+  reconciler turns the master switch off. It checks access again inside
+  that settings write, so a grant that lands mid-pass, with its own
+  switch-on, keeps reminders on.
 - **A time that passes while the device is off.** The receiver replaces
   the plan's stored alert with the next one after each delivery, so an
   alert still in the past at a pass was never delivered: it is armed

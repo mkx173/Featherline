@@ -35,7 +35,7 @@ class ReminderCapabilityReconcilerTest {
     fun setUp() {
         mockkStatic("com.mkx.hrttracker.reminder.NotificationPermissionsKt")
         coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } just Runs
-        coEvery { settingsRepository.setRemindersEnabled(any()) } just Runs
+        coEvery { settingsRepository.turnRemindersOffUnless(any()) } returns true
     }
 
     @After
@@ -78,7 +78,7 @@ class ReminderCapabilityReconcilerTest {
         val reconciler = createReconciler()
         reconciler.reconcile()
 
-        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
+        coVerify(exactly = 1) { settingsRepository.turnRemindersOffUnless(any()) }
     }
 
     @Test
@@ -89,7 +89,7 @@ class ReminderCapabilityReconcilerTest {
         val reconciler = createReconciler()
         reconciler.reconcile()
 
-        coVerify(exactly = 0) { settingsRepository.setRemindersEnabled(any()) }
+        coVerify(exactly = 0) { settingsRepository.turnRemindersOffUnless(any()) }
     }
 
     @Test
@@ -100,7 +100,7 @@ class ReminderCapabilityReconcilerTest {
         val reconciler = createReconciler()
         reconciler.reconcile()
 
-        coVerify(exactly = 0) { settingsRepository.setRemindersEnabled(any()) }
+        coVerify(exactly = 0) { settingsRepository.turnRemindersOffUnless(any()) }
     }
 
     @Test
@@ -168,7 +168,7 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile()
 
         coVerifyOrder {
-            settingsRepository.setRemindersEnabled(false)
+            settingsRepository.turnRemindersOffUnless(any())
             medicationReminderScheduler.rescheduleAll(any(), any())
         }
     }
@@ -184,9 +184,9 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile(reason = "backup_restore", forceReschedule = true, repostShown = true)
 
         coVerifyOrder {
-            settingsRepository.setRemindersEnabled(false)
+            settingsRepository.turnRemindersOffUnless(any())
             medicationReminderScheduler.rescheduleAll(any(), repostShown = false)
-            settingsRepository.setRemindersEnabled(false)
+            settingsRepository.turnRemindersOffUnless(any())
             medicationReminderScheduler.rescheduleAll(any(), repostShown = true)
         }
     }

@@ -118,6 +118,9 @@ class BackupRestoreRemindersTest {
         }
         coEvery { settingsRepository.getCurrentSettings() } answers { SettingsState(remindersEnabled = remindersEnabled) }
         coEvery { settingsRepository.setRemindersEnabled(any()) } answers { remindersEnabled = firstArg() }
+        coEvery { settingsRepository.turnRemindersOffUnless(any()) } answers {
+            (remindersEnabled && !firstArg<() -> Boolean>()()).also { if (it) remindersEnabled = false }
+        }
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
         coEvery { reminderScheduleStore.getScheduledReminders() } answers { stored.toMap() }
         coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } answers { stored[firstArg()] = secondArg() }

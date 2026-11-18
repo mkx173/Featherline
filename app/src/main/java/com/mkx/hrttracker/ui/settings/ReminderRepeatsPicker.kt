@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,14 +37,18 @@ internal fun ReminderRepeatsPickerDialog(
 ) {
     val counts = ReminderRepeats.COUNTS
     val intervals = ReminderRepeats.INTERVALS_MINUTES
-    val countState = rememberWheelPickerState(
-        itemCount = counts.size,
-        initialIndex = counts.indexOf(repeats.count).coerceAtLeast(0),
-    )
-    val intervalState = rememberWheelPickerState(
-        itemCount = intervals.size,
-        initialIndex = intervals.indexOf(repeats.intervalMinutes).coerceAtLeast(0),
-    )
+    // Keyed on repeats: a save confirmed a moment ago can land after the picker reopened, and the
+    // wheels then move to it. The key is part of the saveable key, so after a process death the
+    // wheels restore what was on screen once the same repeats loads.
+    val (countState, intervalState) = key(repeats) {
+        rememberWheelPickerState(
+            itemCount = counts.size,
+            initialIndex = counts.indexOf(repeats.count).coerceAtLeast(0),
+        ) to rememberWheelPickerState(
+            itemCount = intervals.size,
+            initialIndex = intervals.indexOf(repeats.intervalMinutes).coerceAtLeast(0),
+        )
+    }
     val off = stringResource(R.string.settings_reminder_repeats_off)
     val countLabels = counts.map { count -> if (count == 0) off else count.toString() }
     val intervalLabels = intervals.map { minutes ->
