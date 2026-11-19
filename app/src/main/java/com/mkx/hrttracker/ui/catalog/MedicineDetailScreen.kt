@@ -39,7 +39,6 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
@@ -95,6 +94,7 @@ import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtTooltipBox
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -137,6 +137,7 @@ fun MedicineDetailScreen(
     val saveLockedMessage = stringResource(R.string.medicine_locked_by_logs)
     val saveCollisionMessage = stringResource(R.string.medicine_already_exists)
     val saveFailureMessage = stringResource(R.string.medicine_save_failure)
+    val saveOverfullMessage = stringResource(R.string.medicine_open_container_exceeds_size)
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
     val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
@@ -153,6 +154,7 @@ fun MedicineDetailScreen(
             MedicineDetailSaveResult.SUCCESS -> null
             MedicineDetailSaveResult.FAILURE_LOCKED -> saveLockedMessage
             MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION -> saveCollisionMessage
+            MedicineDetailSaveResult.FAILURE_CONTAINER_OVERFULL -> saveOverfullMessage
             MedicineDetailSaveResult.FAILURE_OTHER -> saveFailureMessage
         }
         if (message != null) {
@@ -746,7 +748,7 @@ private fun PatchOffInfoTooltipIcon(message: String) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
     ) {
-        TooltipBox(
+        HrtTooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                 TooltipAnchorPosition.Below,
             ),

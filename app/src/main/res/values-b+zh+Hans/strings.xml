@@ -79,12 +79,11 @@
     <string name="reminder_notification_channel_name">用药提醒</string>
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_single_title">该用药了</string>
-    <string name="reminder_notification_merged_title">该用药了</string>
     <string name="reminder_notification_scheduled_at">计划于 %1$s %2$s</string>
     <string name="reminder_notification_action_log_now">立即记录</string>
-    <string name="reminder_notification_action_log_all">全部记录</string>
-    <string name="reminder_notification_action_remind_later">稍后提醒</string>
-    <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒你</string>
+    <string name="reminder_notification_action_skip">跳过</string>
+    <string name="reminder_notification_skipped">这次剂量不会再通知</string>
+    <string name="reminder_notification_next">下次提醒：%1$s</string>
     <string name="stock_toast_out_single">%1$s 已用尽</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="other">%1$d 种药品已用尽</item>
@@ -383,11 +382,9 @@
     <string name="group_schedule_start_time">开始时间</string>
     <string name="group_schedule_start_now">现在</string>
     <string name="group_schedule_start_reset_to_now">重置</string>
-    <string name="group_schedule_recreated_start_date_past_note">重新创建的分组不能将开始日期设在过去</string>
     <string name="group_past_schedule_mark_completed">标记为已完成</string>
     <string name="group_past_schedule_mark_missed">标记为已错过</string>
     <string name="group_past_schedule_hide">隐藏</string>
-    <string name="group_past_schedule_recreated_locked_note">重新创建的分组不会显示过去的计划</string>
     <string name="group_schedule_backfill_records_empty">未添加记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
     <string name="group_schedule_days_of_week">选择星期</string>
@@ -395,6 +392,7 @@
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
     <string name="group_schedule_preview">预览</string>
     <string name="group_schedule_duplicate_time">该时间已存在于计划中</string>
+    <string name="group_schedule_time_moves_logged_dose_before_start">这个时间会让已记录的用药早于分组的开始时间，因此无法使用</string>
     <string name="group_medication_duplicate_exists">该药物已存在于分组中</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>
@@ -405,6 +403,8 @@
     <plurals name="delete_medication_group_confirmation_with_related_records">
         <item quantity="other">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
     </plurals>
+    <string name="load_medication_group_failure">无法加载分组</string>
+    <string name="load_medication_group_retry">重试</string>
     <string name="save_medication_group_failure">无法保存分组</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
@@ -436,8 +436,6 @@
     </plurals>
     <string name="archive_create_active_copy">归档后创建副本</string>
     <string name="duplicate_medication_group">复制为新分组</string>
-    <string name="archive_and_recreate_medication_group_success">已归档</string>
-    <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录，因此你无法更改部分内容，如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
     <string name="add">添加</string>
@@ -486,7 +484,9 @@
     <string name="medicine_patch_off_name">移除贴片</string>
     <string name="medicine_patch_off_detail_summary">记录此条目会取下所有雌二醇贴片</string>
     <string name="medicine_save_failure">无法保存此药物</string>
+    <string name="medicine_open_container_exceeds_size">当前药瓶或容器的剩余量超过新的容量，请先编辑剩余量</string>
     <string name="medicine_already_exists">药物已存在</string>
+    <string name="database_key_unavailable">数据库已损坏，请清除应用数据</string>
     <string name="field_patch_spec_kind">贴片规格</string>
     <string name="field_patch_spec_total_mg">总含量</string>
     <string name="field_patch_spec_release_rate">释放速率</string>
@@ -611,6 +611,12 @@
     <string name="group_danger_zone_title">危险操作</string>
     <string name="settings_reminders">用药提醒</string>
     <string name="settings_reminders_summary">控制所有提醒</string>
+    <string name="settings_reminder_repeats">重复提醒</string>
+    <string name="settings_reminder_repeats_value">%1$d 次 × %2$d 分钟</string>
+    <string name="settings_reminder_repeats_off">关闭</string>
+    <string name="settings_reminder_repeats_count">重复次数</string>
+    <string name="settings_reminder_repeats_interval">间隔</string>
+    <string name="settings_reminder_repeats_interval_value">%1$d 分钟</string>
     <string name="settings_reminders_permission_off_summary">此应用的通知已关闭</string>
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
@@ -717,6 +723,7 @@
     <string name="settings_backup_password_mismatch">密码不一致</string>
     <string name="settings_backup_restore_success">备份已恢复</string>
     <string name="settings_backup_restore_failed">密码错误或备份文件已损坏</string>
+    <string name="settings_backup_restore_unable">无法恢复，请重试</string>
     <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
@@ -772,7 +779,6 @@
     <string name="personalization_weight_dialog_title">体重</string>
     <string name="personalization_weight_dialog_description">用于改进血药浓度估算</string>
     <string name="personalization_weight_dialog_description_recorded">用于改进血药浓度估算 · 记录于 %1$s</string>
-    <string name="personalization_weight_dialog_description_no_reading">用于改进血药浓度估算 · 还没有体重记录</string>
     <string name="personalization_weight_dialog_description_invalid_reading">用于改进血药浓度估算 · 最新记录不是有效体重</string>
     <string name="personalization_weight_dialog_value_label">体重</string>
     <string name="personalization_weight_dialog_save">保存</string>
@@ -786,7 +792,7 @@
     <string name="health_connect_status_off">同步已关闭</string>
     <string name="health_connect_status_unavailable">不支持此设备</string>
     <string name="health_connect_status_update_required">需要安装或更新</string>
-    <string name="health_connect_status_sync_failed">同步失败</string>
+    <string name="health_connect_status_sync_failed">无法同步</string>
     <string name="health_connect_permission_denied">访问被拒绝，点击前往 Health Connect 允许</string>
     <string name="health_connect_update_required">需要安装或更新 Health Connect，点击前往 Google Play 获取</string>
     <string name="health_connect_sync_now">立即同步</string>
@@ -798,6 +804,7 @@
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="app_language_traditional_chinese">繁體中文</string>
     <string name="app_language_cantonese">廣東話</string>
+    <string name="app_language_czech">Čeština</string>
     <string name="first_day_of_week_follow_system">默认</string>
     <string name="first_day_of_week_saturday">星期六</string>
     <string name="first_day_of_week_sunday">星期日</string>
@@ -864,10 +871,6 @@
     <string name="onboarding_useful_stock_added">已启用库存追踪</string>
     <string name="onboarding_open_app">打开 Featherline</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
-    <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>
-    <plurals name="reminder_notification_more_groups">
-        <item quantity="other">%1$s、%2$s 和其他 %3$d 个分组</item>
-    </plurals>
     <plurals name="reminder_notification_more_medications">
         <item quantity="other">……以及其他 %1$d 个药物</item>
     </plurals>
@@ -1105,6 +1108,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：无法计算此时间点的估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：此时间点预计几乎没有来自用药的雌二醇</string>
+    <string name="calibration_pk_lab_ignored_future_note">暂未使用：抽血时间在未来</string>
     <string name="calibration_pk_lab_invalid_body">数值需大于零，若报告显示低于检测下限，可忽略此提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>

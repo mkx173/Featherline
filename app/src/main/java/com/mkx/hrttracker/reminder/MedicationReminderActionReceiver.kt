@@ -118,16 +118,14 @@ internal fun handleReminderAction(
                     }
                 }
 
-                ACTION_MEDICATION_REMINDER_REMIND_LATER -> actionHandler.remindLater(
+                ACTION_MEDICATION_REMINDER_SKIP -> actionHandler.skip(
                     slots = slots,
                     notificationTag = notificationTag,
                 )
 
-                ACTION_MEDICATION_REMINDER_SNOOZE_ALARM -> actionHandler.showSnoozedReminder(
-                    slots = slots,
-                    notificationTag = notificationTag,
-                )
+                ACTION_MEDICATION_REMINDER_DISMISSED -> actionHandler.dismissed(slots = slots)
 
+                // A v1.4.2 Remind later on a reminder still on screen, or its snooze alarm: posts nothing.
                 else -> diagnosticsLogger.info(
                     TAG,
                     "reminder_action_receiver_ignored reason=unknown_action action=$action"
@@ -153,10 +151,12 @@ private const val HANDLE_BUDGET_MS = 8_000L
 
 const val ACTION_MEDICATION_REMINDER_LOG_NOW =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_LOG_NOW"
-const val ACTION_MEDICATION_REMINDER_REMIND_LATER =
-    "com.mkx.hrttracker.action.MEDICATION_REMINDER_REMIND_LATER"
-const val ACTION_MEDICATION_REMINDER_SNOOZE_ALARM =
-    "com.mkx.hrttracker.action.MEDICATION_REMINDER_SNOOZE_ALARM"
+const val ACTION_MEDICATION_REMINDER_SKIP =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_SKIP"
+
+/** The notification's delete intent: you swiped it away, or tapped Clear all. */
+const val ACTION_MEDICATION_REMINDER_DISMISSED =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_DISMISSED"
 const val EXTRA_REMINDER_SLOTS = "reminderSlots"
 const val EXTRA_REMINDER_LOG_TARGETS = "reminderLogTargets"
 const val EXTRA_NOTIFICATION_TAG = "notificationTag"

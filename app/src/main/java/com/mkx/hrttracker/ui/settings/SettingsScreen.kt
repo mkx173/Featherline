@@ -53,6 +53,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,7 +71,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -79,7 +79,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -88,7 +87,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -97,11 +95,14 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
-import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.components.AccessDenial
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FollowAccessDenial
+import com.mkx.hrttracker.ui.components.rememberAccessDenials
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -142,6 +143,9 @@ fun SettingsScreen(
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
+    appLockViewModel: AppLockViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalActivity.current as ComponentActivity
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
@@ -155,12 +159,6 @@ fun SettingsScreen(
     // pre-resolved string from the composition that first launched them.
     val latestContext by rememberUpdatedState(context)
     val activity = LocalActivity.current
-    val appLockViewModel: AppLockViewModel = hiltViewModel(
-        viewModelStoreOwner = activity as ComponentActivity,
-    )
-    val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
-    val isAppLocked = appLockUiState.shouldShowLockScreen
-    val configuration = LocalConfiguration.current
     val coroutineScope = rememberCoroutineScope()
     val pickerResultScope = remember(activity, coroutineScope) {
         (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
@@ -169,63 +167,48 @@ fun SettingsScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     var isReminderEnablePending by rememberSaveable { mutableStateOf(false) }
+    // As the Health Connect switch's: lives until access returns or the app restarts.
+    val accessDenials = rememberAccessDenials()
+    val notificationAccessDenial = accessDenials.notifications
+    FollowAccessDenial(
+        denial = notificationAccessDenial,
+        hasAccess = hasNotificationAccess,
+        onAccessAllowed = {
+            isReminderEnablePending = true
+            viewModel.setRemindersEnabled(true)
+        },
+    )
     val reminderSupportState = resolveSettingsReminderSupportState(
         hasNotificationAccess = reminderCapabilityState.hasNotificationAccess,
         hasExactAlarmAccess = reminderCapabilityState.hasExactAlarmAccess,
         remindersEnabled = settingsState.remindersEnabled,
         isReminderEnablePending = isReminderEnablePending,
+        isNotificationAccessDenied = notificationAccessDenial.isDenied,
     )
-    var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     val isBackupExportInProgress = uiState.isBackupExportInProgress
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
-    val pendingPreparedBackupExportState = uiState.pendingPreparedBackupExport
-    val pendingPreparedBackupExport =
-        pendingPreparedBackupExportState?.let { preparedBackupExport ->
-            viewModel.restorePreparedBackupExport(
-                displayName = preparedBackupExport.displayName,
-                tempFilePath = preparedBackupExport.tempFilePath,
-            )
-        }
-    val isBackupFlowPending = pendingPreparedBackupExport != null
+    val isBackupFlowPending = uiState.pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
-    val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
-    val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
-        stringResource(
-            R.string.settings_backup_export_success,
-            preparedBackupExport.displayName,
-        )
-    }
-    val backupRestoreIncompatibleFileMessage =
-        stringResource(R.string.settings_backup_restore_incompatible_file)
-    val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
+    val backupRestoreUnableMessage = stringResource(R.string.settings_backup_restore_unable)
     val externalImportFailedMessage = stringResource(R.string.external_import_failed)
-    val isBackupActionBlocked =
-        isBackupExportInProgress || isBackupRestoreInProgress || isBackupFlowPending
+    val isBackupActionBlocked = isBackupExportInProgress || isBackupRestoreInProgress ||
+            isBackupFlowPending || uiState.isExternalImportInProgress
     val externalImportReviewSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Restore runs in viewModelScope so it survives the activity recreate
-    // that the restored app-locale setting triggers. Results come back
-    // through this replaying SharedFlow so the new composition still
+    // Restore runs in viewModelScope so it survives an activity recreate
+    // (the restored app locale applies in place, without one). Results come
+    // back through this replaying SharedFlow so the new composition still
     // shows the toast.
     LaunchedEffect(viewModel) {
         viewModel.backupRestoreEvents.collect { event ->
-            val messageRes = when (event) {
-                BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
-                is BackupRestoreEvent.Failure -> when (event.error) {
-                    is IncompatibleBackupFileException,
-                    is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
-
-                    else -> R.string.settings_backup_restore_failed
-                }
-            }
             Toast.makeText(
                 latestContext,
-                latestContext.getString(messageRes),
+                latestContext.getString(event.messageRes()),
                 Toast.LENGTH_SHORT,
             ).show()
             viewModel.consumeBackupRestoreEvent()
@@ -291,17 +274,9 @@ fun SettingsScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         isReminderEnablePending = isGranted
+        notificationAccessDenial.isDenied = !isGranted
         reminderCapabilityReconciler.requestReconcile("settings_notification_permission_result")
-        if (isGranted) {
-            viewModel.setRemindersEnabled(true)
-        } else {
-            viewModel.setRemindersEnabled(false)
-            Toast.makeText(
-                context,
-                reminderNotificationsUnavailableMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+        viewModel.setRemindersEnabled(isGranted)
     }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -311,52 +286,34 @@ fun SettingsScreen(
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
-        val preparedBackupExport = pendingPreparedBackupExport
-        if (directoryUri == null) {
-            if (preparedBackupExport != null) {
-                pickerResultScope.launch {
-                    viewModel.discardPreparedBackup(preparedBackupExport)
-                    viewModel.clearPendingPreparedBackupExport()
+        viewModel.onBackupDirectoryChosen(directoryUri)
+    }
+    // The export runs in the ViewModel, so it survives a recreation; its replayed
+    // events reach whichever composition is current.
+    LaunchedEffect(viewModel) {
+        viewModel.backupExportEvents.collect { event ->
+            val message = when (event) {
+                BackupExportEvent.ChooseDirectory -> {
+                    showBackupPasswordDialog = false
+                    try {
+                        backupDirectoryLauncher.launch(null)
+                        null
+                    } catch (_: Exception) {
+                        viewModel.onBackupDirectoryChosen(null)
+                        latestContext.getString(R.string.settings_backup_export_failed)
+                    }
                 }
-            }
-            return@rememberLauncherForActivityResult
-        }
-        if (
-            preparedBackupExport == null ||
-            isBackupExportInProgress ||
-            isBackupRestoreInProgress
-        ) {
-            viewModel.clearPendingPreparedBackupExport()
-            Toast.makeText(
-                context,
-                backupExportFailedMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-            return@rememberLauncherForActivityResult
-        }
 
-        pickerResultScope.launch {
-            viewModel.setBackupExportInProgress(true)
-            try {
-                viewModel.exportPreparedBackup(
-                    directoryUri = directoryUri,
-                    preparedBackupExport = preparedBackupExport,
+                is BackupExportEvent.Success -> latestContext.getString(
+                    R.string.settings_backup_export_success,
+                    event.displayName,
                 )
-                Toast.makeText(
-                    context,
-                    backupExportSuccessMessage ?: backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } catch (_: Exception) {
-                Toast.makeText(
-                    context,
-                    backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                viewModel.setBackupExportInProgress(false)
-                viewModel.clearPendingPreparedBackupExport()
+
+                BackupExportEvent.Failure ->
+                    latestContext.getString(R.string.settings_backup_export_failed)
             }
+            message?.let { Toast.makeText(latestContext, it, Toast.LENGTH_SHORT).show() }
+            viewModel.consumeBackupExportEvent()
         }
     }
     val restoreBackupFileLauncher = rememberLauncherForActivityResult(
@@ -399,11 +356,7 @@ fun SettingsScreen(
             } catch (error: Exception) {
                 Toast.makeText(
                     context,
-                    if (error is IncompatibleBackupFileException) {
-                        backupRestoreIncompatibleFileMessage
-                    } else {
-                        backupRestoreFailedMessage
-                    },
+                    latestContext.getString(BackupRestoreEvent.Failure(error).messageRes()),
                     Toast.LENGTH_SHORT
                 ).show()
             } finally {
@@ -466,64 +419,77 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(configuration) {
-        viewModel.refreshAppLanguageOption()
-    }
-
     LaunchedEffect(settingsState.remindersEnabled, hasNotificationAccess) {
         if (settingsState.remindersEnabled || !hasNotificationAccess) {
             isReminderEnablePending = false
         }
     }
 
+    // Below API 30 the toggle's PIN screen stops MainActivity: tell the app lock it isn't a leave.
+    val togglePromptId = uiState.pendingPrompt?.id
+    DisposableEffect(togglePromptId) {
+        if (togglePromptId != null) {
+            appLockViewModel.onOtherPromptStarted()
+        }
+        onDispose {
+            if (togglePromptId != null) {
+                appLockViewModel.onOtherPromptEnded(succeeded = false)
+            }
+        }
+    }
     AppAuthenticationPromptEffect(
         request = uiState.pendingPrompt,
-        onAuthenticated = viewModel::onScreenLockProtectionAuthenticated,
-        onError = viewModel::onScreenLockProtectionPromptError
+        onAuthenticated = {
+            appLockViewModel.onOtherPromptEnded(succeeded = true)
+            viewModel.onScreenLockProtectionAuthenticated()
+        },
+        onError = { errorCode ->
+            appLockViewModel.onOtherPromptEnded(succeeded = false)
+            viewModel.onScreenLockProtectionPromptError(errorCode)
+        },
     )
 
     val onRemindersEnabledChange = { enabled: Boolean ->
         if (!enabled) {
             isReminderEnablePending = false
             viewModel.setRemindersEnabled(false)
-        } else if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            if (
-                shouldShowNotificationPermissionRecoveryToast(
+        } else {
+            when (
+                reminderEnableStep(
                     sdkInt = Build.VERSION.SDK_INT,
-                    hasRequestedPermissionBefore = hasRequestedNotificationPermission,
-                    shouldShowPermissionRationale = activity?.let {
-                        ActivityCompat.shouldShowRequestPermissionRationale(
-                            it,
-                            Manifest.permission.POST_NOTIFICATIONS
-                        )
-                    } ?: false
+                    hasPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == PackageManager.PERMISSION_GRANTED,
+                    areNotificationsEnabled = NotificationManagerCompat.from(context)
+                        .areNotificationsEnabled(),
                 )
             ) {
-                Toast.makeText(
-                    context,
-                    reminderNotificationsUnavailableMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                hasRequestedNotificationPermission = true
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                // Denied for good, Android answers at once with no dialog: a denial all the same.
+                ReminderEnableStep.REQUEST_PERMISSION ->
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+
+                ReminderEnableStep.ASK_TO_ALLOW_IN_SETTINGS -> {
+                    notificationAccessDenial.isDenied = true
+                    // The message shows once the reconciler sees access is gone, as after a denial.
+                    reminderCapabilityReconciler.requestReconcile("settings_notifications_blocked")
+                }
+                ReminderEnableStep.ENABLE -> {
+                    isReminderEnablePending = true
+                    viewModel.setRemindersEnabled(true)
+                }
             }
-        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            isReminderEnablePending = false
-            Toast.makeText(
-                context,
-                reminderNotificationsUnavailableMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            isReminderEnablePending = true
-            viewModel.setRemindersEnabled(true)
+        }
+    }
+    val onOpenNotificationSettings = {
+        val opened = notificationAccessDenial.openSettings(
+            context,
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+        )
+        if (!opened) {
+            Toast.makeText(context, reminderNotificationsUnavailableMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -534,6 +500,7 @@ fun SettingsScreen(
         reminderSupportState = reminderSupportState,
         isReminderEnablePending = isReminderEnablePending,
         onWeightSave = viewModel::setWeight,
+        onWeightUnitChange = viewModel::setWeightUnit,
         onWeightClear = viewModel::clearWeight,
         healthConnectState = healthConnectState,
         isWeightSyncing = isWeightSyncing,
@@ -542,6 +509,9 @@ fun SettingsScreen(
         onWeightSyncDisable = viewModel::disableHealthConnectWeightSync,
         onWeightSyncNow = viewModel::syncWeightNow,
         onRemindersEnabledChange = onRemindersEnabledChange,
+        onReminderRepeatsChange = viewModel::setReminderRepeats,
+        onOpenNotificationSettings = onOpenNotificationSettings,
+        healthConnectDenial = accessDenials.healthConnect,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
         },
@@ -571,7 +541,7 @@ fun SettingsScreen(
                 } catch (_: Exception) {
                     Toast.makeText(
                         context,
-                        backupRestoreFailedMessage,
+                        backupRestoreUnableMessage,
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -609,7 +579,7 @@ fun SettingsScreen(
         modifier = modifier
     )
 
-    uiState.pendingExternalImportPreview?.takeUnless { isAppLocked }?.let { preview ->
+    uiState.pendingExternalImportPreview?.let { preview ->
         ExternalImportReviewSheet(
             preview = preview,
             isImporting = uiState.isExternalImportInProgress,
@@ -625,7 +595,7 @@ fun SettingsScreen(
         )
     }
 
-    if (showBackupPasswordDialog && !isAppLocked) {
+    if (showBackupPasswordDialog) {
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_password_title),
             message = stringResource(R.string.settings_backup_password_message),
@@ -636,44 +606,11 @@ fun SettingsScreen(
             isInProgress = isBackupExportInProgress,
             minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
             onDismiss = { showBackupPasswordDialog = false },
-            onConfirm = { password ->
-                coroutineScope.launch {
-                    viewModel.setBackupExportInProgress(true)
-                    val preparedBackupExport = try {
-                        viewModel.prepareBackupExport(password)
-                    } catch (_: Exception) {
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return@launch
-                    } finally {
-                        viewModel.setBackupExportInProgress(false)
-                    }
-
-                    viewModel.setPendingPreparedBackupExport(
-                        displayName = preparedBackupExport.displayName,
-                        tempFilePath = preparedBackupExport.tempFilePath,
-                    )
-                    showBackupPasswordDialog = false
-                    try {
-                        backupDirectoryLauncher.launch(null)
-                    } catch (_: Exception) {
-                        viewModel.discardPreparedBackup(preparedBackupExport)
-                        viewModel.clearPendingPreparedBackupExport()
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            },
+            onConfirm = viewModel::requestBackupExport,
         )
     }
 
-    pendingRestoreRequest?.takeUnless { isAppLocked }?.let { restoreRequest ->
+    pendingRestoreRequest?.let { restoreRequest ->
         val restorePasswordMessage = if (restoreRequest.displayName != null) {
             stringResource(
                 R.string.settings_backup_restore_password_message_with_name,
@@ -694,8 +631,8 @@ fun SettingsScreen(
             },
             onConfirm = { password ->
                 // Routed through the ViewModel so the restore + result toast
-                // outlive the activity recreate that the restored app-locale
-                // setting triggers. See backupRestoreEvents collector above.
+                // outlive an activity recreate. See backupRestoreEvents
+                // collector above.
                 viewModel.requestBackupRestore(password)
             },
         )
@@ -964,6 +901,7 @@ internal fun SettingsScreenContent(
     isReminderEnablePending: Boolean = false,
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
+    onWeightUnitChange: (WeightUnit) -> Unit = {},
     healthConnectState: HealthConnectCapabilityState = HealthConnectCapabilityState(),
     isWeightSyncing: Boolean = false,
     healthConnectReadingProblem: ReadingProblem? = null,
@@ -971,11 +909,16 @@ internal fun SettingsScreenContent(
     onWeightSyncDisable: () -> Unit = {},
     onWeightSyncNow: () -> Unit = {},
     onRemindersEnabledChange: (Boolean) -> Unit,
+    onReminderRepeatsChange: (ReminderRepeats) -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
+    /** The weight sheet's Health Connect denial; the app's, from [rememberAccessDenials]. */
+    healthConnectDenial: AccessDenial = remember { AccessDenial() },
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
-    onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
+    // Null follows the system.
+    onAppLanguageOptionChange: (AppLanguageOption?) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
@@ -998,6 +941,7 @@ internal fun SettingsScreenContent(
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
+    var showReminderRepeatsPicker by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
@@ -1012,7 +956,7 @@ internal fun SettingsScreenContent(
     // while the menu is still playing its exit animation, so the menu visibly lingers
     // over the already-translated UI. Deferring to onExitFinished keeps the switch from
     // overlapping the dismiss.
-    var pendingLanguageOption by remember { mutableStateOf<AppLanguageOption?>(null) }
+    var pendingLanguageChange by remember { mutableStateOf<(() -> Unit)?>(null) }
     // Same deferral for dark mode: applying it immediately re-themes the whole screen
     // while the dropdown is still animating out, leaving the menu lingering over the
     // already-recolored UI. The row's supporting text still reflects the pick right away
@@ -1069,11 +1013,12 @@ internal fun SettingsScreenContent(
             R.string.personalization_weight_not_set
         },
     ).let { summary ->
-        if (isWeightSyncOn) {
-            stringResource(R.string.personalization_weight_display_health_connect, summary)
-        } else {
-            summary
-        }
+        weightRowText(
+            summary = summary,
+            withSource = stringResource(R.string.personalization_weight_display_health_connect, summary),
+            syncOn = isWeightSyncOn,
+            profile = uiState.userProfile,
+        )
     }
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
@@ -1157,24 +1102,30 @@ internal fun SettingsScreenContent(
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
+                // As the Health Connect switch: on, it asks for notifications; after a denial the
+                // message below is the way to allow them, so the switch waits for it.
+                val reminderSwitchEnabled =
+                    reminderSupportState != SettingsReminderSupportState.NOTIFICATION_OFF
                 HrtSection(title = stringResource(R.string.settings_notifications)) {
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_reminders),
                             supportingText = stringResource(R.string.settings_reminders_summary),
-                            enabled = hasNotificationAccess,
+                            enabled = reminderSwitchEnabled,
                             // Pin the title color to the enabled/disabled value directly instead of
                             // letting it ride the list-item's animated content color. The switch's
                             // enabled state snaps when access is granted, but the animated title
                             // faded in a frame behind it; an explicit color keeps the two in lockstep.
-                            titleColor = if (hasNotificationAccess) {
+                            titleColor = if (reminderSwitchEnabled) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             },
                             onClick = {
-                                if (hasNotificationAccess) {
-                                    onRemindersEnabledChange(!settingsState.remindersEnabled)
+                                if (reminderSwitchEnabled) {
+                                    onRemindersEnabledChange(
+                                        !(settingsState.remindersEnabled && hasNotificationAccess)
+                                    )
                                 }
                             },
                             leadingContent = {
@@ -1191,30 +1142,50 @@ internal fun SettingsScreenContent(
                                     checked = (settingsState.remindersEnabled || isReminderEnablePending) &&
                                             hasNotificationAccess,
                                     onCheckedChange = onRemindersEnabledChange,
-                                    enabled = hasNotificationAccess
+                                    enabled = reminderSwitchEnabled
                                 )
                             }
                         )
                     }
 
-                    if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
-                        item {
-                            SettingsSupportMessage(
-                                text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                painter = painterResource(R.drawable.ic_error_outline),
-                                onClick = { onRemindersEnabledChange(true) },
-                                showChevron = true,
-                            )
-                        }
-                    } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
-                        item {
-                            SettingsSupportMessage(
-                                text = stringResource(R.string.group_notifications_inexact_warning),
-                                painter = painterResource(R.drawable.ic_error_outline),
-                                onClick = { showExactAlarmRecoveryDialog = true },
-                                showChevron = true,
-                            )
-                        }
+                    // The same condition as the switch and the exact-alarm message, so this row and
+                    // that message expand on the same frame, as one motion.
+                    animatedItem(
+                        visible = (settingsState.remindersEnabled || isReminderEnablePending) &&
+                            hasNotificationAccess
+                    ) {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_reminder_repeats),
+                            supportingText = reminderRepeatsLabel(settingsState.reminderRepeats),
+                            onClick = { showReminderRepeatsPicker = true },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_snooze),
+                                    iconSize = 22.dp
+                                )
+                            },
+                        )
+                    }
+
+                    animatedItem(
+                        visible = reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF
+                    ) {
+                        SettingsSupportMessage(
+                            text = stringResource(R.string.settings_reminders_notifications_unavailable),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            onClick = onOpenNotificationSettings,
+                            showChevron = true,
+                        )
+                    }
+                    animatedItem(
+                        visible = reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF
+                    ) {
+                        SettingsSupportMessage(
+                            text = stringResource(R.string.group_notifications_inexact_warning),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            onClick = { showExactAlarmRecoveryDialog = true },
+                            showChevron = true,
+                        )
                     }
                 }
 
@@ -1416,8 +1387,15 @@ internal fun SettingsScreenContent(
                                 // locale flips a frame before the ViewModel's combine/stateIn relays
                                 // the new option, which made this row briefly show the old language
                                 // name. Reading the live locale keeps it in lockstep with the rest of
-                                // the re-localized UI.
-                                supportingText = stringResource(appLanguageOption.labelRes),
+                                // the re-localized UI. Follow system has no locale of its own, so
+                                // it comes from the ViewModel.
+                                supportingText = stringResource(
+                                    if (settingsState.appLanguageFollowsSystem) {
+                                        R.string.dark_mode_follow_system
+                                    } else {
+                                        appLanguageOption.labelRes
+                                    }
+                                ),
                                 onClick = { setLanguageMenuExpanded(true) },
                                 leadingContent = {
                                     SettingsLeadingIconSlot(
@@ -1429,17 +1407,19 @@ internal fun SettingsScreenContent(
                                 expanded = isLanguageMenuExpanded,
                                 onDismissRequest = { setLanguageMenuExpanded(false) },
                                 modifier = Modifier.width(IntrinsicSize.Min),
-                                items = AppLanguageOption.entries.map { option ->
+                                items = (listOf(null) + AppLanguageOption.entries).map { option ->
                                     HrtDropdownMenuItem(
-                                        text = stringResource(option.labelRes),
-                                        onClick = { pendingLanguageOption = option },
+                                        text = stringResource(
+                                            option?.labelRes ?: R.string.dark_mode_follow_system
+                                        ),
+                                        onClick = {
+                                            pendingLanguageChange = { onAppLanguageOptionChange(option) }
+                                        },
                                     )
                                 },
                                 onExitFinished = {
-                                    pendingLanguageOption?.let { option ->
-                                        onAppLanguageOptionChange(option)
-                                        pendingLanguageOption = null
-                                    }
+                                    pendingLanguageChange?.invoke()
+                                    pendingLanguageChange = null
                                 },
                             )
                         }
@@ -1813,6 +1793,17 @@ internal fun SettingsScreenContent(
         }
     }
 
+    if (showReminderRepeatsPicker) {
+        ReminderRepeatsPickerDialog(
+            repeats = settingsState.reminderRepeats,
+            onDismiss = { showReminderRepeatsPicker = false },
+            onConfirm = { repeats ->
+                showReminderRepeatsPicker = false
+                onReminderRepeatsChange(repeats)
+            },
+        )
+    }
+
     if (showExactAlarmRecoveryDialog) {
         ExactAlarmAccessDialog(
             onConfirm = {
@@ -1898,8 +1889,10 @@ internal fun SettingsScreenContent(
             healthConnect = healthConnectState,
             isSyncing = isWeightSyncing,
             readingProblem = healthConnectReadingProblem,
+            healthConnectDenial = healthConnectDenial,
             isInProgress = uiState.isWeightMutationInProgress,
             onSave = onWeightSave,
+            onUnitChange = onWeightUnitChange,
             onClear = onWeightClear,
             onSyncEnable = onWeightSyncEnable,
             onSyncDisable = onWeightSyncDisable,
@@ -1920,9 +1913,16 @@ internal fun resolveSettingsReminderSupportState(
     hasExactAlarmAccess: Boolean,
     remindersEnabled: Boolean,
     isReminderEnablePending: Boolean = false,
+    /** Turning reminders on found notifications denied or blocked. */
+    isNotificationAccessDenied: Boolean = false,
 ): SettingsReminderSupportState {
+    // No message up front: only once turning reminders on was denied, as the Health Connect switch.
     if (!hasNotificationAccess) {
-        return SettingsReminderSupportState.NOTIFICATION_OFF
+        return if (isNotificationAccessDenied) {
+            SettingsReminderSupportState.NOTIFICATION_OFF
+        } else {
+            SettingsReminderSupportState.NONE
+        }
     }
 
     return if ((remindersEnabled || isReminderEnablePending) && !hasExactAlarmAccess) {
@@ -1930,6 +1930,23 @@ internal fun resolveSettingsReminderSupportState(
     } else {
         SettingsReminderSupportState.NONE
     }
+}
+
+internal enum class ReminderEnableStep { ENABLE, REQUEST_PERMISSION, ASK_TO_ALLOW_IN_SETTINGS }
+
+/**
+ * What turning the reminders switch on does: ask for POST_NOTIFICATIONS (API 33+), else, with
+ * notifications blocked for the app (also below API 33, with no runtime permission), point to
+ * Android's notification settings.
+ */
+internal fun reminderEnableStep(
+    sdkInt: Int,
+    hasPermission: Boolean,
+    areNotificationsEnabled: Boolean,
+): ReminderEnableStep = when {
+    sdkInt >= Build.VERSION_CODES.TIRAMISU && !hasPermission -> ReminderEnableStep.REQUEST_PERMISSION
+    !areNotificationsEnabled -> ReminderEnableStep.ASK_TO_ALLOW_IN_SETTINGS
+    else -> ReminderEnableStep.ENABLE
 }
 
 internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
@@ -2108,6 +2125,18 @@ private fun formatWeightSummary(
         )
     }
 }
+
+/**
+ * The weight row's text, Settings' and onboarding's: [summary] (the weight, or its empty text),
+ * or [withSource] ("[summary] · Health Connect") only with sync on and a weight that is a Health
+ * Connect reading. A typed weight kept for want of a reading, or no weight, names no source.
+ */
+internal fun weightRowText(
+    summary: String,
+    withSource: String,
+    syncOn: Boolean,
+    profile: UserProfile,
+): String = if (syncOn && profile.isHealthConnectReading) withSource else summary
 
 private data class AppVersionInfo(
     val versionName: String,

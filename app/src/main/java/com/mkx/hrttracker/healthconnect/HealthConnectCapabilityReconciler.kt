@@ -33,6 +33,11 @@ data class HealthConnectCapabilityState(
      * gone through.
      */
     val accessPending: Boolean = false,
+    /**
+     * No sync has finished since this process started or sync was turned on,
+     * so the weight shown isn't a sync's result yet. Only read while sync is on.
+     */
+    val syncPending: Boolean = false,
 ) {
     /**
      * Sync is on from the user's side: the flag is set and Health Connect is
@@ -40,7 +45,7 @@ data class HealthConnectCapabilityState(
      * keeps sync on then) or while access is pending, so a weight typed before
      * the first reconcile can't be replaced by its sync. Drives the sheet's
      * switch and the "No records" text; the "· Health Connect" suffix outside
-     * needs [hasAccess].
+     * needs [hasAccess] and a weight that is a Health Connect reading.
      */
     fun isSyncOn(syncEnabled: Boolean): Boolean =
         syncEnabled && (hasAccess || providerUpdateRequired || accessPending)
@@ -84,6 +89,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
                 sdkAvailable = sdkAvailable,
                 providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired(),
                 accessPending = true,
+                syncPending = true,
             )
         }
     )
@@ -113,10 +119,18 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         }
     }
 
-    /** Queues enable with disable and reconcile so the last toggle wins. */
+    /**
+     * Queues enable with disable and reconcile so the last toggle wins. Clears
+     * the last sync's problem before the flag goes on: a restore that turned
+     * sync off can leave it behind. The guard is reset so the reconcile below
+     * syncs, and the sheet reads "Syncing…" until it has.
+     */
     suspend fun enableSync() {
         reconcileMutex.withLock {
+            weightSyncCoordinator.clearSyncResult()
             settingsRepository.setHealthConnectWeightSyncEnabled(true)
+            lastSyncAt = null
+            _state.update { it.copy(syncPending = true) }
         }
         requestReconcile("weight_sync_enabled")
     }
@@ -140,6 +154,9 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         // Health Connect needing an update is passing: sync resumes once it is
         // updated, and the sheet says so meanwhile.
         val disableSync = !hasAccess && syncEnabled && !providerUpdateRequired
+        if (!hasAccess || !syncEnabled) {
+            lastSyncAt = null
+        }
         _state.value = HealthConnectCapabilityState(
             sdkAvailable = sdkAvailable,
             hasAccess = hasAccess,
@@ -148,25 +165,26 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             // Read-only until the flag is off, so a failed disable can't let a
             // weight be typed that a later grant's sync would replace.
             accessPending = disableSync,
+            syncPending = lastSyncAt == null,
         )
         diagnosticsLogger.info(
             TAG,
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
-        if (!hasAccess || !syncEnabled) {
-            lastSyncAt = null
-        }
         when {
             disableSync -> {
                 weightSyncCoordinator.disable()
                 _state.update { it.copy(accessPending = false) }
                 diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
             }
-            // The time is set after it, so a sync that threw is retried on the
-            // next reconcile.
+            // The time is cleared before it and set after it, so a sync that
+            // threw is retried on the next reconcile, a forced one inside the
+            // minute included.
             hasAccess && syncEnabled && (sync || lastSyncAt.isNotWithinInterval(now)) -> {
+                lastSyncAt = null
                 weightSyncCoordinator.sync(reason, now)
                 lastSyncAt = now
+                _state.update { it.copy(syncPending = false) }
             }
         }
     }

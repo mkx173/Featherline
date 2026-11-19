@@ -7,12 +7,25 @@ import android.util.Base64
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * The database passphrase can't be read: the stored wrapped passphrase, or the keystore
+ * key that unwraps it, is gone, or the key under the alias doesn't unwrap it (another key
+ * replaced it, or the stored value is damaged). Thrown instead of generating a new one,
+ * which couldn't open a database created with the old one and would replace what is left
+ * of it. This does not recover a lost key.
+ */
+class DatabaseKeyUnavailableException(
+    message: String,
+    cause: Throwable? = null,
+) : IllegalStateException(message, cause)
 
 @Singleton
 class DatabasePassphraseProvider @Inject constructor(
@@ -32,10 +45,21 @@ class DatabasePassphraseProvider @Inject constructor(
         val iv = prefs.getString(KEY_DATABASE_PASSPHRASE_IV, null)
 
         if (encryptedPassphrase != null && iv != null) {
-            val passphrase = decrypt(
-                encryptedBytes = Base64.decode(encryptedPassphrase, Base64.NO_WRAP),
-                iv = Base64.decode(iv, Base64.NO_WRAP)
-            )
+            val passphrase = try {
+                decrypt(
+                    encryptedBytes = Base64.decode(encryptedPassphrase, Base64.NO_WRAP),
+                    iv = Base64.decode(iv, Base64.NO_WRAP)
+                )
+            } catch (e: AEADBadTagException) {
+                // Not the key that wrapped it: v1.4.2 created a new one under the alias when
+                // the old one was lost. Or the stored value is damaged. Neither heals by retrying.
+                throw DatabaseKeyUnavailableException("The keystore key doesn't unwrap the database passphrase.", e)
+            } catch (e: IllegalArgumentException) {
+                // Base64.decode: the stored value isn't Base64.
+                throw DatabaseKeyUnavailableException("The stored database passphrase is damaged.", e)
+            }
+            // ponytail: other keystore failures (UnrecoverableKeyException included) stay untyped;
+            // they may be transient, and the lost-key toast tells the user to clear data.
 
             try {
                 cachePassphrase(passphrase)
@@ -45,6 +69,12 @@ class DatabasePassphraseProvider @Inject constructor(
             }
         }
 
+        // Only a database not created yet can take a new passphrase.
+        if (context.getDatabasePath(DATABASE_NAME).exists()) {
+            throw DatabaseKeyUnavailableException(
+                "The database exists, but its stored passphrase is missing."
+            )
+        }
         val passphrase = ByteArray(PASSPHRASE_SIZE_BYTES).also(SecureRandom()::nextBytes)
         try {
             persistEncryptedBlob(encrypt(passphrase))
@@ -70,7 +100,10 @@ class DatabasePassphraseProvider @Inject constructor(
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(
                 Cipher.DECRYPT_MODE,
-                getOrCreateMasterKey(),
+                // Read only: a key created here couldn't unwrap what the lost one wrapped.
+                findMasterKey() ?: throw DatabaseKeyUnavailableException(
+                    "The keystore key that unwraps the database passphrase is missing."
+                ),
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
             )
         }
@@ -97,9 +130,13 @@ class DatabasePassphraseProvider @Inject constructor(
         cachedPassphrase = passphrase.copyOf()
     }
 
-    private fun getOrCreateMasterKey(): SecretKey {
+    private fun findMasterKey(): SecretKey? {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-        val existingKey = keyStore.getKey(MASTER_KEY_ALIAS, null) as? SecretKey
+        return keyStore.getKey(MASTER_KEY_ALIAS, null) as? SecretKey
+    }
+
+    private fun getOrCreateMasterKey(): SecretKey {
+        val existingKey = findMasterKey()
         if (existingKey != null) {
             return existingKey
         }

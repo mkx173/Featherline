@@ -5,9 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.backup.BackupDecryptionException
 import com.mkx.hrttracker.data.backup.BackupExportService
-import com.mkx.hrttracker.data.backup.BackupExportedFile
+import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
+import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
@@ -26,9 +28,9 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
@@ -40,6 +42,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -53,6 +58,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import javax.inject.Inject
@@ -65,7 +71,6 @@ class SettingsViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
     private val externalImportService: ExternalImportService,
@@ -102,10 +107,16 @@ class SettingsViewModel @Inject constructor(
     )
 
     // Replay the most recent result so the UI still sees it after a config
-    // change recreates the collector. The restore itself sets the app locale,
-    // which triggers an activity recreate; without replay the success/failure
-    // toast would be lost in the gap.
+    // change recreates the collector; without replay the success/failure
+    // toast would be lost in the gap. The restored locale and dark mode
+    // apply in place (the manifest handles them), so they don't recreate it.
     private val restoreEvents = MutableSharedFlow<BackupRestoreEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
+    // Replayed like restoreEvents: the export outlives a recreation, and the new
+    // composition still has to launch the folder picker or show the result.
+    private val exportEvents = MutableSharedFlow<BackupExportEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
@@ -163,13 +174,18 @@ class SettingsViewModel @Inject constructor(
         // Seeded from the estimate Home already has (stored or derived) so
         // the calibration row has its support text on the first frame; the
         // combine above waits on a Room read before its first value.
+        // The settings too, so the language row doesn't show the language name before Follow system.
         initialValue = SettingsUiState(
+            settingsState = settingsRepository.settingsState.value,
             calibrationAdjusted = e2EstimateRepository.latestHome.value?.calibration?.adjusted,
         ),
     )
 
     init {
         preloadCalibrationData()
+        viewModelScope.launch {
+            runCatching { backupExportService.discardAbandonedPreparedBackups() }
+        }
     }
 
     val healthConnectState: StateFlow<HealthConnectCapabilityState> =
@@ -180,6 +196,14 @@ class SettingsViewModel @Inject constructor(
     fun setWeight(value: Double, unit: WeightUnit) {
         launchWeightMutation {
             userProfileRepository.setWeight(value, unit)
+        }
+    }
+
+    /** The unit switch with sync on; the sync rewrites it from Health Connect's value. */
+    fun setWeightUnit(unit: WeightUnit) {
+        launchWeightMutation {
+            userProfileRepository.setWeightUnit(unit)
+            healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", sync = true)
         }
     }
 
@@ -198,8 +222,7 @@ class SettingsViewModel @Inject constructor(
 
     fun disableHealthConnectWeightSync() {
         launchSettingsMutation {
-            // Also clears the reading's date: turning sync back on shouldn't show
-            // it before the new sync lands.
+            // The weight and its date stay.
             healthConnectCapabilityReconciler.disableSync()
         }
     }
@@ -269,6 +292,12 @@ class SettingsViewModel @Inject constructor(
     fun setHideMedicationDetails(hidden: Boolean) {
         launchSettingsMutation {
             settingsRepository.setHideMedicationDetails(hidden)
+            // Reminders on screen show or hide their medications too, reposted silently.
+            withContext(NonCancellable) {
+                runReminderSideEffectBestEffort {
+                    medicationReminderScheduler.refreshDoseReminderNotifications()
+                }
+            }
         }
     }
 
@@ -291,6 +320,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
+            // Startup reconciles if the process dies before the reschedule; it outlives Settings.
+            var reconcileMark: MedicationReminderScheduler.ReconcileMark? = null
+            runReminderSideEffectBestEffort {
+                reconcileMark = medicationReminderScheduler.markReconcilePending()
+            }
             try {
                 settingsRepository.setRemindersEnabled(enabled)
             } catch (error: CancellationException) {
@@ -298,19 +332,31 @@ class SettingsViewModel @Inject constructor(
             } catch (error: Exception) {
                 settingsEvents.tryEmit(SettingsMutationEvent.Failure(error))
                 return@launch
+            } finally {
+                reconcileMark?.committed()
             }
-            if (!enabled) {
+            withContext(NonCancellable) {
                 runReminderSideEffectBestEffort {
-                    medicationReminderSnoozeScheduler.clearAllSnoozes()
+                    medicationReminderScheduler.rescheduleAll()
                 }
-            }
-            runReminderSideEffectBestEffort {
-                medicationReminderScheduler.rescheduleAll()
             }
         }
     }
 
-    fun setAppLanguageOption(option: AppLanguageOption) {
+    /** Every plan's alerts move to the new repeats: each armed alarm is armed again. */
+    fun setReminderRepeats(repeats: ReminderRepeats) {
+        launchSettingsMutation {
+            settingsRepository.setReminderRepeats(repeats)
+            withContext(NonCancellable) {
+                runReminderSideEffectBestEffort {
+                    medicationReminderScheduler.rescheduleAll()
+                }
+            }
+        }
+    }
+
+    /** Null follows the system. */
+    fun setAppLanguageOption(option: AppLanguageOption?) {
         settingsRepository.setAppLanguageOption(option)
     }
 
@@ -330,10 +376,6 @@ class SettingsViewModel @Inject constructor(
         launchSettingsMutation {
             settingsRepository.setHideScreenContentEnabled(enabled)
         }
-    }
-
-    fun refreshAppLanguageOption() {
-        settingsRepository.refreshAppLanguageOption()
     }
 
     fun onScreenLockProtectionToggle(enabled: Boolean) {
@@ -383,8 +425,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onScreenLockProtectionAuthenticated() {
-        val intent = pendingScreenLockIntent ?: ScreenLockPromptIntent.ENABLE
         pendingPrompt.value = null
+        // None after process death: a redelivered result can't say what it was for.
+        val intent = pendingScreenLockIntent ?: return
         pendingScreenLockIntent = null
         launchSettingsMutation {
             when (intent) {
@@ -415,66 +458,91 @@ class SettingsViewModel @Inject constructor(
 
     private enum class ScreenLockPromptIntent { ENABLE, DISABLE }
 
-    suspend fun prepareBackupExport(
-        password: String,
-    ): PreparedBackupExport {
-        return backupExportService.prepareBackupExport(
-            password = password,
-        )
+    /**
+     * Prepares a backup in viewModelScope, so a recreation neither cancels it nor loses
+     * its file; [BackupExportEvent.ChooseDirectory] then asks the screen for a folder.
+     */
+    fun requestBackupExport(password: String) {
+        // Checked and set synchronously, as requestBackupRestore does: the dialog's own
+        // busy check reads the flag its last frame drew, so a repeat tap or IME Done
+        // before the next frame still reaches here.
+        if (isBackupExportInProgress.value || pendingPreparedBackupExport.value != null) return
+        isBackupExportInProgress.value = true
+        viewModelScope.launch {
+            val event = try {
+                val prepared = backupExportService.prepareBackupExport(password = password)
+                setPendingPreparedBackupExport(
+                    displayName = prepared.displayName,
+                    tempFilePath = prepared.tempFilePath,
+                )
+                BackupExportEvent.ChooseDirectory
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                BackupExportEvent.Failure
+            } finally {
+                isBackupExportInProgress.value = false
+            }
+            // Emitted once idle: the screen may answer at once, as a folder picker that
+            // fails to open hands the export straight back.
+            exportEvents.tryEmit(event)
+        }
     }
 
-    suspend fun exportPreparedBackup(
-        directoryUri: Uri,
-        preparedBackupExport: PreparedBackupExport,
-    ): BackupExportedFile {
-        return backupExportService.exportPreparedBackup(
-            directoryUri = directoryUri,
-            preparedBackupExport = preparedBackupExport,
+    /** The folder picker's result for the prepared backup; null if the picker was cancelled. */
+    fun onBackupDirectoryChosen(directoryUri: Uri?) {
+        if (isBackupExportInProgress.value) return
+        val pending = pendingPreparedBackupExport.value
+        if (pending == null) {
+            // Nothing prepared to write: the process died while the picker was open.
+            if (directoryUri != null) exportEvents.tryEmit(BackupExportEvent.Failure)
+            return
+        }
+        val prepared = PreparedBackupExport(
+            displayName = pending.displayName,
+            tempFilePath = pending.tempFilePath,
         )
+        isBackupExportInProgress.value = true
+        viewModelScope.launch {
+            try {
+                if (directoryUri == null) {
+                    backupExportService.discardPreparedBackup(prepared)
+                } else {
+                    val exported = backupExportService.exportPreparedBackup(
+                        directoryUri = directoryUri,
+                        preparedBackupExport = prepared,
+                    )
+                    exportEvents.tryEmit(BackupExportEvent.Success(exported.displayName))
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                exportEvents.tryEmit(BackupExportEvent.Failure)
+            } finally {
+                isBackupExportInProgress.value = false
+                clearPendingPreparedBackupExport()
+            }
+        }
     }
 
-    suspend fun discardPreparedBackup(
-        preparedBackupExport: PreparedBackupExport,
-    ) {
-        backupExportService.discardPreparedBackup(preparedBackupExport)
+    val backupExportEvents: SharedFlow<BackupExportEvent> = exportEvents.asSharedFlow()
+
+    override fun onCleared() {
+        // A prepared backup the folder picker never answered: no later screen can finish it.
+        // ponytail: one unlink on the main thread; viewModelScope is already cancelled here.
+        pendingPreparedBackupExport.value?.let { pending -> File(pending.tempFilePath).delete() }
     }
 
-    fun restorePreparedBackupExport(
-        displayName: String,
-        tempFilePath: String,
-    ): PreparedBackupExport {
-        return backupExportService.restorePreparedBackupExport(
-            displayName = displayName,
-            tempFilePath = tempFilePath,
-        )
-    }
-
-    suspend fun restoreBackup(
-        fileUri: Uri,
-        password: String,
-    ) {
-        backupRestoreService.restoreBackup(
-            fileUri = fileUri,
-            password = password,
-        )
-    }
-
-    suspend fun restoreBackupBytes(
-        encryptedBytes: ByteArray,
-        password: String,
-    ) {
-        backupRestoreService.restoreBackupBytes(
-            encryptedBytes = encryptedBytes,
-            password = password,
-        )
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeBackupExportEvent() {
+        exportEvents.resetReplayCache()
     }
 
     /**
      * Restore handler that survives configuration change. The restored
-     * settings include `appLanguageOption`, which triggers an activity
-     * recreate; if we launched this in `rememberCoroutineScope()` the
-     * coroutine would be cancelled mid-flight and the success toast would
-     * be lost. Running on `viewModelScope` and emitting events via a
+     * language and dark mode apply in place, but any other recreate would
+     * cancel a `rememberCoroutineScope()` launch mid-flight and lose the
+     * success toast. Running on `viewModelScope` and emitting events via a
      * replaying SharedFlow lets the new composition pick up the result.
      */
     fun requestBackupRestore(password: String) {
@@ -492,16 +560,23 @@ class SettingsViewModel @Inject constructor(
         setBackupRestoreInProgress(true)
         // Keep the pending request in state while the restore is active so
         // the password dialog stays rendered and locked across a slow Room
-        // open or the activity recreate caused by restored settings.
+        // open or a recreate.
         viewModelScope.launch {
             try {
-                backupRestoreService.restoreBackupBytes(
+                val outcome = backupRestoreService.restoreBackupBytes(
                     encryptedBytes = ownedBytes,
                     password = password,
                 )
-                restoreEvents.tryEmit(BackupRestoreEvent.Success)
+                restoreEvents.tryEmit(
+                    when (outcome) {
+                        BackupRestoreOutcome.RESTORED -> BackupRestoreEvent.Success
+                        BackupRestoreOutcome.FOLLOW_UP_FAILED -> BackupRestoreEvent.FollowUpFailed
+                    }
+                )
             } catch (error: CancellationException) {
-                throw error
+                // Still active, it was a step's own failure, not a cancel: report it, not nothing.
+                ensureActive()
+                restoreEvents.tryEmit(BackupRestoreEvent.Failure(error))
             } catch (error: Exception) {
                 restoreEvents.tryEmit(BackupRestoreEvent.Failure(error))
             } finally {
@@ -536,12 +611,6 @@ class SettingsViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeExternalImportEvent() {
         externalImportEventsInternal.resetReplayCache()
-    }
-
-    suspend fun validateBackupFile(
-        fileUri: Uri,
-    ) {
-        backupRestoreService.validateBackupFile(fileUri)
     }
 
     /**
@@ -652,12 +721,6 @@ class SettingsViewModel @Inject constructor(
         pendingPreparedBackupExport.value = null
     }
 
-    fun setBackupExportInProgress(
-        inProgress: Boolean,
-    ) {
-        isBackupExportInProgress.value = inProgress
-    }
-
     fun setBackupRestoreInProgress(
         inProgress: Boolean,
     ) {
@@ -694,10 +757,11 @@ class SettingsViewModel @Inject constructor(
     private suspend fun runReminderSideEffectBestEffort(block: suspend () -> Unit) {
         try {
             block()
-        } catch (error: CancellationException) {
-            throw error
+        } catch (_: CancellationException) {
+            // Still active, it was the step's own failure, not a cancel: best effort goes on.
+            currentCoroutineContext().ensureActive()
         } catch (_: Exception) {
-            // Reminder alarms and snoozes are reconciled again by lifecycle
+            // Reminder alarms are reconciled again by lifecycle
             // hooks; the settings DataStore write above is the user-visible change.
         }
     }
@@ -733,7 +797,34 @@ data class PendingPreparedBackupExport(
 
 sealed class BackupRestoreEvent {
     data object Success : BackupRestoreEvent()
+
+    /** The data was replaced, but some of its settings or reminders weren't. */
+    data object FollowUpFailed : BackupRestoreEvent()
     data class Failure(val error: Throwable) : BackupRestoreEvent()
+}
+
+/**
+ * Only a failed decryption blames the password; anything else unexplained says to try again,
+ * a backup from a newer version included (rare, so it only says it failed).
+ */
+fun BackupRestoreEvent.messageRes(): Int = when (this) {
+    BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
+    // The data is in, but a setting or reminder isn't: restoring again redoes them (B6).
+    BackupRestoreEvent.FollowUpFailed -> R.string.settings_backup_restore_unable
+    is BackupRestoreEvent.Failure -> when (error) {
+        is BackupDecryptionException -> R.string.settings_backup_restore_failed
+        is IncompatibleBackupFileException,
+        is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
+
+        else -> R.string.settings_backup_restore_unable
+    }
+}
+
+sealed interface BackupExportEvent {
+    /** The backup is prepared: pick the folder it goes in. */
+    data object ChooseDirectory : BackupExportEvent
+    data class Success(val displayName: String) : BackupExportEvent
+    data object Failure : BackupExportEvent
 }
 
 sealed class WeightMutationEvent {

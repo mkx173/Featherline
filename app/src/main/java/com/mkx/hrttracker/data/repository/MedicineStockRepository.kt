@@ -156,22 +156,29 @@ class MedicineStockRepository @Inject constructor(
             ?.firstOrNull { it.medicine.uuid == medicineUuid }
     }
 
+    /**
+     * [pendingEntry] is the record the caller is about to save, with its stock already taken
+     * out of [hypotheticalStock]. It covers its slot as the saved record will, so the slot's
+     * demand is not charged twice, and only for its own signature and count.
+     */
     fun previewRunway(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-    ): RunwayProjection? = previewProjection(medicineUuid, hypotheticalStock)?.runway
+        pendingEntry: MedicationLogEntry? = null,
+    ): RunwayProjection? = previewProjection(medicineUuid, hypotheticalStock, pendingEntry)?.runway
 
+    /** As [previewRunway], for the stock state. */
     fun previewState(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-        fulfilledSlot: FulfilledScheduledSlot? = null,
+        pendingEntry: MedicationLogEntry? = null,
     ): MedicineStockState? =
-        previewProjection(medicineUuid, hypotheticalStock, fulfilledSlot)?.state
+        previewProjection(medicineUuid, hypotheticalStock, pendingEntry)?.state
 
     private fun previewProjection(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-        fulfilledSlot: FulfilledScheduledSlot? = null,
+        pendingEntry: MedicationLogEntry? = null,
     ): MedicineStockProjection? {
         val cache = projectionsCacheFlow.value ?: return null
         val medicine = cache.medicines.firstOrNull { it.uuid == medicineUuid } ?: return null
@@ -179,10 +186,13 @@ class MedicineStockRepository @Inject constructor(
         return project(
             medicine = medicine.copy(stock = hypotheticalStock),
             activeGroups = cache.activeGroups,
-            logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
+            logEntries = stockWindowLogEntries(
+                cache.logEntries + listOfNotNull(pendingEntry),
+                cache.now,
+                zoneId,
+            ),
             now = cache.now,
             zoneId = zoneId,
-            fulfilledSlot = fulfilledSlot,
         )
     }
 
@@ -218,7 +228,6 @@ class MedicineStockRepository @Inject constructor(
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId,
-        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): MedicineStockProjection {
         val total = computeTotalStock(medicine)
         val rate = computeDosesPerDayMagnitude(medicine, activeGroups)
@@ -228,7 +237,6 @@ class MedicineStockRepository @Inject constructor(
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
-            fulfilledSlot = fulfilledSlot,
         )
         val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId)
         val maxPerAdministration = ScheduledRunwayCalculator.maxPerAdministration(

@@ -1981,6 +1981,22 @@ class MainViewModelTest {
         assertEquals(2, restored.homeDeepLinkSignal.value)
     }
 
+    @Test
+    fun droppingAHomeDeepLink_keepsTheHighlightOfANewerOne() {
+        // Kept editing over one link while another arrived: the newer link still highlights.
+        val viewModel = viewModel(LocalDateTime.of(2026, 4, 30, 12, 0))
+        viewModel.requestDoseRowHighlight(listOf(DoseRowHighlightKey.Manual(entryUuid = UUID.randomUUID())))
+        val older = viewModel.homeDeepLinkSignal.value
+        val newer = DoseRowHighlightRequest(listOf(DoseRowHighlightKey.Manual(entryUuid = UUID.randomUUID())))
+        viewModel.requestDoseRowHighlight(newer.keys)
+
+        viewModel.dropHighlightRequest(older)
+        assertEquals("Dropping the older link cleared the newer one's highlight", newer, viewModel.highlightRequest.value)
+
+        viewModel.dropHighlightRequest(viewModel.homeDeepLinkSignal.value)
+        assertNull(viewModel.highlightRequest.value)
+    }
+
     private fun viewModel(
         now: LocalDateTime,
         savedStateHandle: SavedStateHandle = SavedStateHandle(),

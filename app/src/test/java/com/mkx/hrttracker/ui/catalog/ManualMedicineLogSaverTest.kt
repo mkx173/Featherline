@@ -68,6 +68,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = appliedDate,
             appliedTime = appliedTime,
             appliedZoneId = zoneId,
+            appliedOffset = null,
         )
 
         assertNull(result.saveResult)
@@ -121,6 +122,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = LocalDate.of(2026, 5, 24),
             appliedTime = LocalTime.of(9, 0),
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedOffset = null,
         )
 
         assertNull(result.saveResult)
@@ -160,6 +162,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = LocalDate.of(2026, 5, 24),
             appliedTime = LocalTime.of(9, 0),
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedOffset = null,
         )
 
         assertSame(MedicineSlotDraftSaveResult.FAILURE, result.saveResult)
@@ -196,6 +199,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = LocalDate.of(2026, 5, 24),
             appliedTime = LocalTime.of(9, 0),
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedOffset = null,
         )
 
         assertNull(result.saveResult)
@@ -231,6 +235,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = LocalDate.of(2026, 5, 24),
             appliedTime = LocalTime.of(9, 0),
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedOffset = null,
         )
 
         assertNull(result.saveResult)
@@ -267,6 +272,7 @@ class ManualMedicineLogSaverTest {
             appliedDate = LocalDate.of(2026, 5, 24),
             appliedTime = LocalTime.of(9, 0),
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedOffset = null,
         )
 
         assertNull(result.saveResult)
@@ -303,6 +309,7 @@ class ManualMedicineLogSaverTest {
                 appliedDate = LocalDate.of(2026, 5, 24),
                 appliedTime = LocalTime.of(9, 0),
                 appliedZoneId = ZoneId.of("Asia/Tokyo"),
+                appliedOffset = null,
             )
             fail("Expected CancellationException")
         } catch (exception: CancellationException) {

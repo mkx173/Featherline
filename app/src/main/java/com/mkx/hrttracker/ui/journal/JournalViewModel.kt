@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.BuildConfig
@@ -24,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -34,7 +37,7 @@ class JournalViewModel @Inject constructor(
     private fun today(): LocalDate = appTimeSource.currentMinute.value.toLocalDate()
 
     private val noteMutationError = MutableStateFlow<JournalNoteMutation?>(null)
-    private val noteSaveFailureToken = MutableStateFlow(0)
+    val noteSaves = NoteSaves()
 
     val uiState: StateFlow<JournalUiState> = run {
         val initialToday = today()
@@ -45,7 +48,10 @@ class JournalViewModel @Inject constructor(
             journalRepository.observeTrackedDates(),
             journalRepository.observePinnedTrackedDates(),
             todayFlow.flatMapLatest { today ->
-                val windowStart = today.minusDays(29)
+                // ponytail: the window's oldest row leaves the timeline at a date change even with
+                // an unsaved draft open on it, which is then dropped. Keep an open or held row
+                // listed until its session ends if that ever matters.
+                val windowStart = recentNotesWindowStart(today)
                 combine(
                     journalRepository.observeNotesOnOrAfter(windowStart),
                     journalRepository.observeNoteForDate(today),
@@ -73,8 +79,8 @@ class JournalViewModel @Inject constructor(
                 olderNotesCount = dateState.olderNotesCount,
             )
         }
-        combine(core, noteMutationError, noteSaveFailureToken) { state, error, token ->
-            state.copy(noteMutationError = error, noteSaveFailureToken = token)
+        combine(core, noteMutationError) { state, error ->
+            state.copy(noteMutationError = error)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
@@ -103,7 +109,7 @@ class JournalViewModel @Inject constructor(
         if (trackedDatesOrNull == null || pinnedOrNull == null || notesOrNull == null) {
             return JournalUiState(today = today)
         }
-        val windowStart = today.minusDays(29)
+        val windowStart = recentNotesWindowStart(today)
         return JournalUiState(
             isLoading = false,
             today = today,
@@ -118,19 +124,23 @@ class JournalViewModel @Inject constructor(
         )
     }
 
-    fun saveTodayNote(text: String) = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(today(), text) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.SAVE) }
-    }
+    // The Today composer's note for a day it holds, which can be older than the 30-day window.
+    fun observeNoteForDate(date: LocalDate): Flow<Note?> = journalRepository.observeNoteForDate(date)
 
-    fun saveNote(date: LocalDate, text: String) = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(date, text) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.SAVE) }
-    }
-
-    fun deleteTodayNote() = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.deleteNoteForDate(today()) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.DELETE) }
+    // The Today composer saves and deletes through these too, with the day it shows: resolving
+    // today here at write time would file an edit begun before a date rollover under the new day.
+    // Returns the save's id in [noteSaves], where the card that sent it follows its outcome.
+    fun saveNote(date: LocalDate, text: String): Long {
+        val id = noteSaves.start()
+        viewModelScope.launch {
+            runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(date, text) } }
+                .onSuccess { noteSaves.settle(id, landed = true) }
+                .onFailure {
+                    failNoteWrite(it, JournalNoteMutation.SAVE)
+                    noteSaves.settle(id, landed = false)
+                }
+        }
+        return id
     }
 
     fun deleteNote(date: LocalDate) = viewModelScope.launch {
@@ -144,15 +154,11 @@ class JournalViewModel @Inject constructor(
 
     // A confirmed note write either persists or surfaces a one-shot error event; the repository
     // keeps throwing (read flows recover separately). CancellationException is structural and must
-    // propagate. A failed SAVE also bumps a monotonic token the composer watches to recover its
-    // unsaved draft.
+    // propagate. A failed SAVE is also settled in [noteSaves], so its card recovers the draft.
     private fun failNoteWrite(error: Throwable, mutation: JournalNoteMutation) {
         if (error is CancellationException) throw error
         if (error !is Exception) throw error
         noteMutationError.value = mutation
-        if (mutation == JournalNoteMutation.SAVE) {
-            noteSaveFailureToken.value += 1
-        }
     }
 
     // Debug-only: seed date-stamped sample notes across the recent window, the previous few
@@ -181,9 +187,36 @@ class JournalViewModel @Inject constructor(
     }
 }
 
+// The first day of the Journal's 30-day window of recent notes, ending [today].
+internal fun recentNotesWindowStart(today: LocalDate): LocalDate = today.minusDays(29)
+
 private data class JournalDateUiState(
     val today: LocalDate,
     val recentNotes: List<Note>,
     val todayNote: Note?,
     val olderNotesCount: Int,
 )
+
+enum class NoteSaveOutcome { InFlight, Landed, Failed }
+
+// The note saves a screen's ViewModel has sent, each under its own id, so the note card that sent
+// one follows that save's outcome: not another card's, and not an earlier save of its own. Snapshot
+// state, so a card reads a save's outcome in the frame it sends it. Shared by JournalViewModel and
+// AllNotesViewModel.
+// ponytail: an outcome stays for the ViewModel's life, one entry per save.
+@Stable
+class NoteSaves {
+    // Random, so ids from a process that died (restored in a card's saved state) don't collide
+    // with the ones a new ViewModel sends.
+    private var nextId = Random.nextLong()
+    private val outcomes = mutableStateMapOf<Long, NoteSaveOutcome>()
+
+    fun start(): Long = nextId++.also { outcomes[it] = NoteSaveOutcome.InFlight }
+
+    fun settle(id: Long, landed: Boolean) {
+        outcomes[id] = if (landed) NoteSaveOutcome.Landed else NoteSaveOutcome.Failed
+    }
+
+    // An id this instance never sent came from a process that has since died, and its save with it.
+    fun outcome(id: Long): NoteSaveOutcome = outcomes[id] ?: NoteSaveOutcome.Failed
+}

@@ -53,6 +53,13 @@ class HomeE2InputsCodecTest {
     )
 
     @Test
+    fun encodeDecode_roundTripsTheMetadataEpoch() {
+        // Lost, every cold start would reject the file and re-solve.
+        val record = minimalRecord().copy(generation = 4L, epoch = -7_301_234_567_890L)
+        assertEquals(record, HomeSnapshotCodec.decodeE2Inputs(HomeSnapshotCodec.encodeE2Inputs(record)))
+    }
+
+    @Test
     fun encodeDecode_roundTripsEveryField() {
         val medicine = testMedicine(uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"))
         val group = MedicationGroup(
@@ -125,7 +132,7 @@ class HomeE2InputsCodecTest {
             decode = HomeSnapshotCodec::decodeE2Inputs,
         )
         val otherVersion = HomeSnapshotCodec.encodeE2Inputs(minimalRecord()).also { bytes ->
-            ByteBuffer.wrap(bytes).putInt(0, 5)
+            ByteBuffer.wrap(bytes).putInt(0, 4)
         }
 
         assertThrows(IllegalArgumentException::class.java) { HomeSnapshotCodec.decodeE2Inputs(otherVersion) }

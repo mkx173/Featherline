@@ -57,6 +57,13 @@ class HomeSnapshotCodecTest {
     )
 
     @Test
+    fun encodeDecode_roundTripsTheMetadataEpoch() {
+        // Lost, every cold start would reject the file and rebuild.
+        val record = minimalRecord().copy(generation = 4L, epoch = -7_301_234_567_890L)
+        assertEquals(record, HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record)))
+    }
+
+    @Test
     fun encodeDecode_roundTripsHomeAnchorAcrossHeroBackgrounds() {
         val base = TrackedDate(
             id = "anchor-1",

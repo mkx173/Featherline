@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotOccurrence
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.recordedCount
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -50,10 +51,10 @@ internal fun buildEstradiolPkSimulationEntries(
                 scheduledFor = scheduledFor,
                 signature = MedicationSignature.fromLogEntry(entry),
             )
-            key to entry.count
+            key to entry
         }
-        .groupingBy { (key, _) -> key }
-        .fold(0) { acc, (_, count) -> acc + count }
+        .groupBy(keySelector = { (key, _) -> key }, valueTransform = { (_, entry) -> entry })
+        .mapValues { (_, entries) -> entries.recordedCount() }
 
     val planned = activeGroups.asSequence()
         .flatMap { group ->

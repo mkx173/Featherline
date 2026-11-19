@@ -42,6 +42,9 @@ class WeightSyncCoordinatorTest {
     private val t1 = Instant.parse("2026-10-10T07:00:00Z")
     private val now = Instant.parse("2026-10-16T09:00:00Z")
 
+    // A backup from a phone with a wrong clock, or a hand-edited one.
+    private val farFuture = Instant.parse("2099-01-01T00:00:00Z")
+
     @Before
     fun setUp() {
         val databaseHolder: DatabaseHolder = mockk()
@@ -81,7 +84,7 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
-    fun noReadingKeepsCurrentWeightAndReportsNone() = runTest {
+    fun noReadingKeepsTheWeightAndItsDate_andReportsNone() = runTest {
         repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t1)
         val before = dao.row
 
@@ -90,8 +93,10 @@ class WeightSyncCoordinatorTest {
         assertEquals(before, dao.row)
         assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
 
-        // Turned back on, it reads Syncing until the new sync, not the old result.
+        // Turned off, the weight and its date stay, and turned back on there's
+        // no old problem before the new sync.
         coordinator.disable()
+        assertEquals(before, dao.row)
         assertNull(coordinator.readingProblem.value)
     }
 
@@ -99,15 +104,49 @@ class WeightSyncCoordinatorTest {
     fun unchangedReadingWritesNothing() = runTest {
         hc.records += HealthConnectWeight(weightKg = 61.83, time = t1)
         coordinator.sync(now = now)
-        val adoptWritesAfterFirst = dao.adoptWrites
+        val writesAfterFirst = dao.writes
 
         // Same reading, even with extra sub-millisecond precision.
         hc.records[0] = HealthConnectWeight(weightKg = 61.81, time = t1.plusNanos(300))
         coordinator.sync(now = now)
 
-        assertEquals(1, adoptWritesAfterFirst)
-        assertEquals(1, dao.adoptWrites)
+        assertEquals(1, writesAfterFirst)
+        assertEquals(1, dao.writes)
         assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+    }
+
+    @Test
+    fun aTypedWeightWithTheReadingsDateAndValue_isNotRewritten() = runTest {
+        repository.setWeight(61.8, WeightUnit.KILOGRAMS, now = t1)
+        hc.records += HealthConnectWeight(weightKg = 61.83, time = t1)
+
+        coordinator.sync(now = now)
+
+        assertEquals(1, dao.writes)
+    }
+
+    @Test
+    fun aUnitSwitch_thenTheSyncItForces_endsAtHcsOwnValueInTheNewUnit() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 61.83, time = t1)
+        coordinator.sync(now = now)
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+
+        // From the rounded 61.8 kg: 136.2 lb, 0.1 off HC's own 136.3.
+        repository.setWeightUnit(WeightUnit.POUNDS, now = now)
+        assertEquals(136.2, dao.row!!.weightOriginalValue!!, 0.0)
+        coordinator.sync(now = now)
+
+        val row = dao.row!!
+        assertEquals(WeightUnit.POUNDS.name, row.weightOriginalUnit)
+        assertEquals(136.3, row.weightOriginalValue!!, 0.0)
+        assertEquals(WeightUnit.POUNDS.toKg(136.3), row.weightKg!!, 0.0)
+        assertEquals(t1.toEpochMilli(), row.weightMeasuredAtEpochMillis)
+
+        // And back: the same reading, in kg.
+        repository.setWeightUnit(WeightUnit.KILOGRAMS, now = now)
+        coordinator.sync(now = now)
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(61.8, dao.row!!.weightKg!!, 0.0)
     }
 
     @Test
@@ -124,11 +163,11 @@ class WeightSyncCoordinatorTest {
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
         assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
 
-        // Nothing left: the weight stays, but no longer claims a measured time.
+        // Nothing left: the weight and its date stay.
         hc.records.clear()
         coordinator.sync(now = now)
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
-        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+        assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
         assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
     }
 
@@ -176,13 +215,13 @@ class WeightSyncCoordinatorTest {
 
         assertFalse(syncEnabled)
         assertEquals(62.4, dao.row!!.weightOriginalValue!!, 0.0)
-        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
     }
 
     @Test
     fun aWeightTypedRightAfterTurningSyncOff_survivesThePendingAdoption() = runTest {
         hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
-        // Holds the sync in adoptHcWeight's profile read, before its mutation.
+        // Holds the sync in its first profile read, before it adopts.
         val gate = CompletableDeferred<Unit>()
         dao.getProfileGate = gate
 
@@ -196,19 +235,109 @@ class WeightSyncCoordinatorTest {
         advanceUntilIdle()
 
         assertEquals(65.0, dao.row!!.weightOriginalValue!!, 0.0)
-        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+        assertEquals(now.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
     }
 
     @Test
-    fun readingWithFutureTimestampIsIgnored() = runTest {
-        repository.setWeight(60.0, WeightUnit.KILOGRAMS, now = t1)
-        hc.records += HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofMinutes(10))
+    fun aFutureReadingBesidePastOnes_isIgnored_andTheLatestPastOneAdopted() = runTest {
+        repository.setWeight(60.0, WeightUnit.KILOGRAMS, now = t0)
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 60.5, time = t0),
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+            // A scale whose clock is a day ahead: Android 14+ can't hand it out yet.
+            HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofDays(1)),
+        )
 
         coordinator.sync(now = now)
 
-        assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
-        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
-        assertEquals(now + Duration.ofMinutes(5), hc.lastNotAfter)
+        assertEquals(now, hc.lastReadEnd)
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        assertNull(coordinator.readingProblem.value)
+
+        // Once its time comes, it's the latest.
+        coordinator.sync(now = now + Duration.ofDays(2))
+        assertEquals(80.0, dao.row!!.weightOriginalValue!!, 0.0)
+    }
+
+    @Test
+    fun onlyFutureReadings_reportNone_andKeepTheWeightAndItsDate() = runTest {
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t1)
+        val typed = dao.row
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofMinutes(3)),
+            HealthConnectWeight(weightKg = 90.0, time = farFuture),
+        )
+
+        coordinator.sync(now = now)
+
+        assertEquals(typed, dao.row)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun clearSyncResult_dropsTheProblem_andKeepsTheWeightAndItsDate() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 61.8, time = t0)
+        coordinator.sync(now = now)
+        hc.records += HealthConnectWeight(weightKg = 0.0, time = t1)
+        coordinator.sync(now = now)
+        // A restore turned the flag off; the problem stayed.
+        syncEnabled = false
+
+        coordinator.clearSyncResult()
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        assertNull(coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun restoredFutureWeightNotInHc_givesWayToTheLatestReading() = runTest {
+        restoreWeightMeasuredAt(farFuture)
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 60.0, time = t0),
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+        )
+
+        coordinator.sync(now = now)
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        assertNull(coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun restoredFutureWeightWithNoHcReading_keepsTheWeightAndItsDate() = runTest {
+        restoreWeightMeasuredAt(farFuture)
+        val restored = dao.row
+
+        coordinator.sync(now = now)
+
+        assertEquals(restored, dao.row)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun invalidLatestReading_keepsARestoredFutureDateHcLacks() = runTest {
+        restoreWeightMeasuredAt(farFuture)
+        val restored = dao.row
+        hc.records += HealthConnectWeight(weightKg = 0.0, time = t1)
+
+        coordinator.sync(now = now)
+
+        // W3: an invalid reading keeps the weight and its date.
+        assertEquals(restored, dao.row)
+        assertEquals(ReadingProblem.INVALID, coordinator.readingProblem.value)
+    }
+
+    private fun restoreWeightMeasuredAt(measuredAt: Instant) {
+        dao.row = UserProfileEntity(
+            weightKg = 90.0,
+            weightOriginalValue = 90.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = now.toEpochMilli(),
+            weightMeasuredAtEpochMillis = measuredAt.toEpochMilli(),
+        )
     }
 
     @Test
@@ -226,7 +355,7 @@ class WeightSyncCoordinatorTest {
 
 private class FakeUserProfileDao : UserProfileDao {
     var row: UserProfileEntity? = null
-    var adoptWrites = 0 // writes carrying an HC measured time
+    var writes = 0
     var getProfileGate: CompletableDeferred<Unit>? = null // the next read waits on it
 
     override suspend fun getProfile(id: String): UserProfileEntity? {
@@ -240,7 +369,7 @@ private class FakeUserProfileDao : UserProfileDao {
     override fun observeProfile(id: String): Flow<UserProfileEntity?> = MutableStateFlow(row)
 
     override suspend fun upsertProfile(profile: UserProfileEntity) {
-        if (profile.weightMeasuredAtEpochMillis != null) adoptWrites++
+        writes++
         row = profile
     }
 
@@ -255,9 +384,9 @@ internal class FakeHealthConnectManager : HealthConnectManager {
     var providerUpdateRequired = false
     var accessError: Throwable? = null
     val records = mutableListOf<HealthConnectWeight>()
-    var lastNotAfter: Instant? = null
     var reads = 0
     var readGate: CompletableDeferred<Unit>? = null
+    var lastReadEnd: Instant? = null
 
     override fun isAvailable(): Boolean = available
 
@@ -267,12 +396,12 @@ internal class FakeHealthConnectManager : HealthConnectManager {
 
     override fun supportsReadHistory(): Boolean = false
 
-    // Returns the latest record regardless of notAfter, so the coordinator's own
-    // future-timestamp guard is what the tests exercise.
-    override suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight? {
+    // As the real read's before(now): the end is exclusive. On a tie, the first in
+    // the list: HC's order between equal times is unspecified.
+    override suspend fun readLatestWeight(now: Instant): HealthConnectWeight? {
         reads++
-        lastNotAfter = notAfter
+        lastReadEnd = now
         readGate?.await()
-        return records.maxByOrNull { it.time }
+        return records.filter { it.time < now }.maxByOrNull { it.time }
     }
 }

@@ -106,7 +106,7 @@ fun buildPlanCalendarDayUiState(
         }
         val matchedOccurrenceCount = (expectedOccurrenceCount - unfulfilledSlots.size)
             .coerceAtMost(expectedOccurrenceCount)
-        val pendingOccurrenceCount = unfulfilledSlots.count { slot -> !isPastDue(slot.scheduledFor, now) }
+        val pendingOccurrenceCount = unfulfilledSlots.count { slot -> !isPastDue(slot.scheduledFor, now, zoneId) }
 
         dayStates[currentDate] = PlanCalendarDayUiState(
             expectedOccurrenceCount = expectedOccurrenceCount,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.repository.BloodTestRepository
@@ -31,7 +32,9 @@ import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -45,6 +48,7 @@ import javax.inject.Singleton
 @Singleton
 class BackupExportService @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val databaseHolder: DatabaseHolder,
     private val settingsRepository: SettingsRepository,
     private val userProfileRepository: UserProfileRepository,
     private val medicineRepository: MedicineRepository,
@@ -56,6 +60,9 @@ class BackupExportService @Inject constructor(
     private val journalRepository: JournalRepository,
     private val backupCrypto: BackupCrypto,
 ) {
+    // Paths of the prepared backups this process created; see discardAbandonedPreparedBackups.
+    private val preparedThisProcess = mutableSetOf<String>()
+
     internal suspend fun buildBackupSnapshotJson(
         exportedAt: Instant = Instant.now(),
     ): String = withContext(Dispatchers.IO) {
@@ -80,35 +87,47 @@ class BackupExportService @Inject constructor(
     suspend fun prepareBackupExport(
         password: String,
         exportedAt: Instant = Instant.now(),
-    ): PreparedBackupExport = withContext(Dispatchers.IO) {
-        val displayName = buildBackupFileName(exportedAt)
-        val payload = buildEncryptedBackupBytes(
-            password = password,
-            exportedAt = exportedAt,
-        )
-        val tempFile = File.createTempFile(
-            PREPARED_BACKUP_FILE_PREFIX,
-            PREPARED_BACKUP_FILE_SUFFIX,
-            context.cacheDir,
-        )
-
+    ): PreparedBackupExport {
+        var createdFile: File? = null
         try {
-            try {
-                tempFile.outputStream().use { outputStream ->
-                    outputStream.write(payload)
+            return withContext(Dispatchers.IO) {
+                val displayName = buildBackupFileName(exportedAt)
+                val payload = buildEncryptedBackupBytes(
+                    password = password,
+                    exportedAt = exportedAt,
+                )
+                val tempFile = synchronized(preparedThisProcess) {
+                    File.createTempFile(
+                        PREPARED_BACKUP_FILE_PREFIX,
+                        PREPARED_BACKUP_FILE_SUFFIX,
+                        context.cacheDir,
+                    ).also { file -> preparedThisProcess += file.absolutePath }
                 }
-            } catch (error: Exception) {
-                tempFile.delete()
-                throw error
-            }
-        } finally {
-            payload.fill(0)
-        }
+                createdFile = tempFile
 
-        PreparedBackupExport(
-            displayName = displayName,
-            tempFilePath = tempFile.absolutePath,
-        )
+                try {
+                    try {
+                        tempFile.outputStream().use { outputStream ->
+                            outputStream.write(payload)
+                        }
+                    } catch (error: Exception) {
+                        tempFile.delete()
+                        throw error
+                    }
+                } finally {
+                    payload.fill(0)
+                }
+
+                PreparedBackupExport(
+                    displayName = displayName,
+                    tempFilePath = tempFile.absolutePath,
+                )
+            }
+        } catch (error: CancellationException) {
+            // Cancelled once the file was written, the caller never gets it to delete.
+            createdFile?.delete()
+            throw error
+        }
     }
 
     suspend fun exportPreparedBackup(
@@ -149,20 +168,26 @@ class BackupExportService @Inject constructor(
         }
     }
 
+    // NonCancellable: a cancelled caller's finally, such as exportPreparedBackup's, still deletes.
     suspend fun discardPreparedBackup(
         preparedBackupExport: PreparedBackupExport,
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(Dispatchers.IO + NonCancellable) {
         File(preparedBackupExport.tempFilePath).delete()
     }
 
-    internal fun restorePreparedBackupExport(
-        displayName: String,
-        tempFilePath: String,
-    ): PreparedBackupExport {
-        return PreparedBackupExport(
-            displayName = displayName,
-            tempFilePath = tempFilePath,
-        )
+    /**
+     * Deletes the prepared backups an earlier process left, such as one whose process died
+     * while the folder picker was open. One this process prepared is still an export's,
+     * waiting for the picker or being written, or already deleted.
+     */
+    suspend fun discardAbandonedPreparedBackups(): Unit = withContext(Dispatchers.IO) {
+        synchronized(preparedThisProcess) {
+            context.cacheDir.listFiles { file ->
+                file.name.startsWith(PREPARED_BACKUP_FILE_PREFIX) &&
+                        file.name.endsWith(PREPARED_BACKUP_FILE_SUFFIX) &&
+                        file.absolutePath !in preparedThisProcess
+            }?.forEach(File::delete)
+        }
     }
 
     private suspend fun buildSnapshot(
@@ -183,92 +208,106 @@ class BackupExportService @Inject constructor(
         // settings — worse than a failed export the user can retry.
         widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         val defaultAppearance = widgetAppearanceRepository.currentEffective(null)
-        val userProfile = userProfileRepository.getCurrentProfile()
-        // Pulled before groups/logs so the importer can build its valid-medicine
-        // set up front and reject any item or log that references a row absent
-        // from this list.
-        val medicines = medicineRepository.getAll()
-        val medicationGroups = medicationGroupRepository.getGroups()
-        val medicationLogs = medicationLogRepository.getEntries()
-        val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
-        val bloodTestPanels = bloodTestRepository.getPanels()
-        val calibrationMetadataByResultId = pkCalibrationStorageRepository.getAllMetadata()
-            .associateBy { metadata -> metadata.resultId }
-        val trackedDates = journalRepository.getTrackedDateEntities()
-        val notes = journalRepository.getNoteEntities()
+        // Every Room read in one transaction. A writer committing between two of them,
+        // such as an import adding a medicine and its doses after the medicines were read,
+        // would leave doses the backup has no medicine for, and restore rejects that file.
+        // ponytail: Room's compat mode has only write transactions, so writers wait for
+        // these reads (not the encryption after them).
+        return databaseHolder.withTransaction {
+            val userProfile = userProfileRepository.getCurrentProfile()
+            // Pulled before groups/logs so the importer can build its valid-medicine
+            // set up front and reject any item or log that references a row absent
+            // from this list.
+            val medicines = medicineRepository.getAll()
+            val medicationGroups = medicationGroupRepository.getGroups()
+            val medicationLogs = medicationLogRepository.getEntries()
+            val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
+            val bloodTestPanels = bloodTestRepository.getPanels()
+            val calibrationMetadataByResultId = pkCalibrationStorageRepository.getAllMetadata()
+                .associateBy { metadata -> metadata.resultId }
+            val trackedDates = journalRepository.getTrackedDateEntities()
+            val notes = journalRepository.getNoteEntities()
 
-        return BackupSnapshot(
-            exportedAtEpochMillis = exportedAt.toEpochMilli(),
-            app = BackupAppSnapshot(
-                packageName = BACKUP_APP_PACKAGE_NAME,
-            ),
-            settings = BackupSettingsSnapshot(
-                darkModeOption = settings.darkModeOption.name,
-                adaptiveColorEnabled = settings.adaptiveColorEnabled,
-                pureBlackEnabled = settings.pureBlackEnabled,
-                hazeBlurEnabled = settings.hazeBlurEnabled,
-                classicNavigationBarEnabled = settings.classicNavigationBarEnabled,
-                remindersEnabled = settings.remindersEnabled,
-                healthConnectWeightSyncEnabled = settings.healthConnectWeightSyncEnabled,
-                showArchivedGroupRecords = settings.showArchivedGroupRecords,
-                hideReferenceRanges = settings.hideReferenceRanges,
-                // Do not include screenLockProtectionEnabled; app-lock protection stays local.
-                appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
-                hideScreenContentEnabled = settings.hideScreenContentEnabled,
-                onboardingCompleted = onboardingCompleted,
-                pkCalibrationIntroSeen = pkCalibrationIntroSeen,
-                appLanguageOption = settings.appLanguageOption.name,
-                homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
-                homeE2ChartWindow = settings.homeE2ChartWindowOption.name,
-                calibrationDefaultUnits = settings.calibrationDefaultUnits.entries
-                    .associate { (analyteKey, unitKey) ->
-                        analyteKey.storageValue to unitKey.storageValue
+            BackupSnapshot(
+                exportedAtEpochMillis = exportedAt.toEpochMilli(),
+                app = BackupAppSnapshot(
+                    packageName = BACKUP_APP_PACKAGE_NAME,
+                ),
+                settings = BackupSettingsSnapshot(
+                    darkModeOption = settings.darkModeOption.name,
+                    adaptiveColorEnabled = settings.adaptiveColorEnabled,
+                    pureBlackEnabled = settings.pureBlackEnabled,
+                    hazeBlurEnabled = settings.hazeBlurEnabled,
+                    classicNavigationBarEnabled = settings.classicNavigationBarEnabled,
+                    remindersEnabled = settings.remindersEnabled,
+                    reminderRepeatCount = settings.reminderRepeats.count,
+                    reminderRepeatIntervalMinutes = settings.reminderRepeats.intervalMinutes,
+                    healthConnectWeightSyncEnabled = settings.healthConnectWeightSyncEnabled,
+                    showArchivedGroupRecords = settings.showArchivedGroupRecords,
+                    hideReferenceRanges = settings.hideReferenceRanges,
+                    // Do not include screenLockProtectionEnabled; app-lock protection stays local.
+                    // Restore keeps these two local as well; older versions need them to read the file.
+                    appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
+                    hideScreenContentEnabled = settings.hideScreenContentEnabled,
+                    onboardingCompleted = onboardingCompleted,
+                    pkCalibrationIntroSeen = pkCalibrationIntroSeen,
+                    appLanguageOption = if (settings.appLanguageFollowsSystem) {
+                        FOLLOW_SYSTEM_APP_LANGUAGE
+                    } else {
+                        settings.appLanguageOption.name
                     },
-                lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
-                hideMedicationDetails = settings.hideMedicationDetails,
-                // legacy mirrors for forward-compat readers:
-                // Mirrors must stay derived from defaultAppearance — never set independently.
-                widgetContentScale = defaultAppearance.contentScale,
-                widgetBackgroundAlpha = defaultAppearance.backgroundAlpha,
-                widgetDarkModeOption = defaultAppearance.darkMode.name,
-                widgetAppearance = WidgetAppearanceCodec.encode(defaultAppearance),
-                groupNameCounter = settings.groupNameCounter,
-                firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
-                stockNudgeEnabled = stockNudgeEnabled,
-                stockNudgeUserEnabled = stockNudgeUserEnabled,
-                homeCardOrder = homeCardLayout.order.map { it.name },
-                // Stable hidden serialization: default-order filtered by membership, so
-                // exports are deterministic regardless of Set iteration order.
-                homeCardHidden = DEFAULT_HOME_CARD_ORDER.filter { it in homeCardLayout.hidden }
-                    .map { it.name },
-            ),
-            userProfile = BackupUserProfileSnapshot(
-                weightKg = userProfile.weightKg,
-                weightOriginalValue = userProfile.weightOriginalValue,
-                weightOriginalUnit = userProfile.weightOriginalUnit.name,
-                updatedAtEpochMillis = userProfile.updatedAt?.toEpochMilli(),
-                weightMeasuredAtEpochMillis = userProfile.weightMeasuredAt?.toEpochMilli(),
-            ),
-            medicines = medicines.map { medicine -> medicine.toBackupSnapshot() },
-            medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },
-            medicationLogs = medicationLogs.map { entry -> entry.toBackupSnapshot() },
-            customBloodAnalytes = customBloodAnalytes.map { analyte ->
-                BackupCustomBloodAnalyteSnapshot(
-                    uuid = analyte.uuid.toString(),
-                    abbreviation = analyte.abbreviation,
-                    name = analyte.name,
-                    unitLabel = analyte.unitLabel,
-                    createdAtEpochMillis = analyte.createdAt.toEpochMilli(),
-                    updatedAtEpochMillis = analyte.updatedAt.toEpochMilli(),
-                    archivedAtEpochMillis = analyte.archivedAt?.toEpochMilli(),
-                )
-            },
-            bloodTestPanels = bloodTestPanels.map { panel ->
-                panel.toBackupSnapshot(calibrationMetadataByResultId)
-            },
-            trackedDates = trackedDates.map { trackedDate -> trackedDate.toBackupSnapshot() },
-            notes = notes.map { note -> note.toBackupSnapshot() },
-        )
+                    homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
+                    homeE2ChartWindow = settings.homeE2ChartWindowOption.name,
+                    calibrationDefaultUnits = settings.calibrationDefaultUnits.entries
+                        .associate { (analyteKey, unitKey) ->
+                            analyteKey.storageValue to unitKey.storageValue
+                        },
+                    lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
+                    hideMedicationDetails = settings.hideMedicationDetails,
+                    // legacy mirrors for forward-compat readers:
+                    // Mirrors must stay derived from defaultAppearance — never set independently.
+                    widgetContentScale = defaultAppearance.contentScale,
+                    widgetBackgroundAlpha = defaultAppearance.backgroundAlpha,
+                    widgetDarkModeOption = defaultAppearance.darkMode.name,
+                    widgetAppearance = WidgetAppearanceCodec.encode(defaultAppearance),
+                    groupNameCounter = settings.groupNameCounter,
+                    firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
+                    stockNudgeEnabled = stockNudgeEnabled,
+                    stockNudgeUserEnabled = stockNudgeUserEnabled,
+                    homeCardOrder = homeCardLayout.order.map { it.name },
+                    // Stable hidden serialization: default-order filtered by membership, so
+                    // exports are deterministic regardless of Set iteration order.
+                    homeCardHidden = DEFAULT_HOME_CARD_ORDER.filter { it in homeCardLayout.hidden }
+                        .map { it.name },
+                ),
+                userProfile = BackupUserProfileSnapshot(
+                    weightKg = userProfile.weightKg,
+                    weightOriginalValue = userProfile.weightOriginalValue,
+                    weightOriginalUnit = userProfile.weightOriginalUnit.name,
+                    updatedAtEpochMillis = userProfile.updatedAt?.toEpochMilli(),
+                    weightMeasuredAtEpochMillis = userProfile.weightMeasuredAt?.toEpochMilli(),
+                ),
+                medicines = medicines.map { medicine -> medicine.toBackupSnapshot() },
+                medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },
+                medicationLogs = medicationLogs.map { entry -> entry.toBackupSnapshot() },
+                customBloodAnalytes = customBloodAnalytes.map { analyte ->
+                    BackupCustomBloodAnalyteSnapshot(
+                        uuid = analyte.uuid.toString(),
+                        abbreviation = analyte.abbreviation,
+                        name = analyte.name,
+                        unitLabel = analyte.unitLabel,
+                        createdAtEpochMillis = analyte.createdAt.toEpochMilli(),
+                        updatedAtEpochMillis = analyte.updatedAt.toEpochMilli(),
+                        archivedAtEpochMillis = analyte.archivedAt?.toEpochMilli(),
+                    )
+                },
+                bloodTestPanels = bloodTestPanels.map { panel ->
+                    panel.toBackupSnapshot(calibrationMetadataByResultId)
+                },
+                trackedDates = trackedDates.map { trackedDate -> trackedDate.toBackupSnapshot() },
+                notes = notes.map { note -> note.toBackupSnapshot() },
+            )
+        }
     }
 
     private fun Medicine.toBackupSnapshot(): BackupMedicineSnapshot {

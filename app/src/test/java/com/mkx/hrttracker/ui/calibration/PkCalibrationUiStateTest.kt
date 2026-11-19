@@ -1,11 +1,19 @@
 package com.mkx.hrttracker.ui.calibration
 
+import com.mkx.hrttracker.data.repository.CalibrationEstimate
+import com.mkx.hrttracker.data.repository.buildPkCalibrationInput
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
@@ -22,6 +30,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -275,6 +285,46 @@ class PkCalibrationUiStateTest {
         assertFalse(PkCalibrationLabRowFlag.Excluded(id).needsReview)
         assertFalse(PkCalibrationLabRowFlag.Ignored(id, PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL).needsReview)
         assertFalse(PkCalibrationLabRowFlag.Ignored(id, PkCalibrationLabIgnoreReason.NUMERIC_FAILURE).needsReview)
+    }
+
+    @Test
+    fun aLabDatedInTheFuture_readsAsNotUsedYet_neverAsAWarningToResolve() {
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 20, 10, 0)
+        fun millis(at: LocalDateTime) = at.atZone(zoneId).toInstant().toEpochMilli()
+        val estradiol = testMedicine(preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0))
+        val logged = (0L..60L).map { daysAgo ->
+            testMedicationLogEntry(
+                medicine = estradiol,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = now.toLocalDate().minusDays(daysAgo).atTime(8, 0).atZone(zoneId).toInstant(),
+            )
+        }
+        val futureId = UUID(0L, 2L)
+        // Booked two days out, past doses not logged yet: the fit would read
+        // it against no estradiol, or as far from the estimate.
+        val labs = listOf(
+            PkCalibrationLab(UUID(0L, 1L), millis(now.minusDays(2).withHour(9)), 140.0),
+            PkCalibrationLab(futureId, millis(now.plusDays(2).withHour(9)), 140.0),
+        )
+        val input = buildPkCalibrationInput(labs, logged, weightKg = 62.0, metadata = emptyList(), nowEpochMillis = millis(now))
+        val state = pkCalibrationScreenState(
+            CalibrationEstimate(
+                result = PkCalibrationEngine.evaluate(input).result,
+                render = null,
+                acceptedLabIds = emptySet(),
+                excludedLabIds = emptySet(),
+                nonPositiveLabIds = emptySet(),
+            )
+        )
+
+        val flag = pkCalibrationLabFlag(state, futureId)
+        assertEquals(PkCalibrationLabRowFlag.Ignored(futureId, PkCalibrationLabIgnoreReason.FUTURE), flag)
+        assertFalse(checkNotNull(flag).needsReview)
+        // The list row reads the same flag.
+        val panel = panel(futureId, 140.0)
+        assertEquals(flag, pkCalibrationLabRowFlags(state, listOf(panel))[panel.uuid])
     }
 
     private fun panel(resultId: UUID, canonicalValue: Double): BloodTestPanel {

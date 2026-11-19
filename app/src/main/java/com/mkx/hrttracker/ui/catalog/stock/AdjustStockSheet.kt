@@ -20,8 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -229,7 +232,8 @@ internal fun RecountForm(
     val placeholderText = remember(stock.unitsRemaining, allowDecimal) {
         stock.unitsRemaining.toEditableCountOrEmpty(allowDecimal).ifEmpty { "0" }
     }
-    var unitsRemainingText by remember(projection.medicine.uuid) { mutableStateOf("") }
+    val unitsRemainingState = remember(projection.medicine.uuid) { TextFieldState() }
+    val unitsRemainingText = unitsRemainingState.text.toString()
 
     val unitsRemaining = parseAdjustStockCount(unitsRemainingText, allowDecimal)
     val canConfirm = unitsRemaining != null && unitsRemaining >= 0
@@ -240,17 +244,19 @@ internal fun RecountForm(
     )
 
     val stepRecount: (Int) -> Unit = { delta ->
-        unitsRemainingText = stepAdjustStockCountText(
-            unitsRemainingText.ifEmpty { placeholderText },
-            delta,
-            allowDecimal,
+        unitsRemainingState.setTextAndPlaceCursorAtEnd(
+            stepAdjustStockCountText(
+                unitsRemainingText.ifEmpty { placeholderText },
+                delta,
+                allowDecimal,
+            ),
         )
     }
 
     Column {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_current_stock),
-            value = unitsRemainingText,
+            state = unitsRemainingState,
             unit = adjustStockUnitLabel(projection.medicine),
             unitPluralRes = stockUnitNounPluralRes(
                 projection.medicine.preparation,
@@ -259,7 +265,6 @@ internal fun RecountForm(
             leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
             allowDecimal = allowDecimal,
-            onValueChange = { unitsRemainingText = it },
             onStep = stepRecount,
         )
         val presets = quickAddPresets(projection.medicine)
@@ -315,7 +320,8 @@ internal fun ReceivedForm(
             ""
         }
     }
-    var receivedText by remember(initialReceivedText) { mutableStateOf(initialReceivedText) }
+    val receivedState = remember(initialReceivedText) { TextFieldState(initialReceivedText) }
+    val receivedText = receivedState.text.toString()
 
     val received = parseAdjustStockCount(receivedText, allowDecimal)
     val canConfirm = canConfirmReceived(received, projection.medicine.stock.trackingEnabled)
@@ -330,13 +336,15 @@ internal fun ReceivedForm(
     )
 
     val stepReceived: (Int) -> Unit = { delta ->
-        receivedText = stepAdjustStockCountText(receivedText, delta, allowDecimal)
+        receivedState.setTextAndPlaceCursorAtEnd(
+            stepAdjustStockCountText(receivedText, delta, allowDecimal),
+        )
     }
 
     Column {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
-            value = receivedText,
+            state = receivedState,
             unit = adjustStockUnitLabel(projection.medicine),
             unitPluralRes = stockUnitNounPluralRes(
                 projection.medicine.preparation,
@@ -344,7 +352,6 @@ internal fun ReceivedForm(
             ),
             leadingIconRes = R.drawable.ic_box_add,
             allowDecimal = allowDecimal,
-            onValueChange = { receivedText = it },
             onStep = stepReceived,
         )
         val presets = quickAddPresets(projection.medicine)
@@ -465,15 +472,21 @@ private fun AdjustPreviewRunwayText.resolve(): String {
 @Composable
 private fun StockStepperCard(
     label: String,
-    value: String,
+    state: TextFieldState,
     unit: String,
     @PluralsRes unitPluralRes: Int?,
     @DrawableRes leadingIconRes: Int,
-    onValueChange: (String) -> Unit,
     onStep: (Int) -> Unit,
     placeholder: String = "0",
     allowDecimal: Boolean,
 ) {
+    val value = state.text.toString()
+    val inputTransformation = remember(allowDecimal) {
+        InputTransformation {
+            val sanitized = sanitizeAdjustStockCountText(toString(), allowDecimal)
+            if (sanitized != toString()) replace(0, length, sanitized)
+        }
+    }
     val effectiveCount = parseAdjustStockCount(value.ifEmpty { placeholder }, allowDecimal) ?: 0.0
     val unitLabel = unitPluralRes?.let {
         pluralStringResource(it, stockCountPluralQuantity(effectiveCount))
@@ -558,12 +571,10 @@ private fun StockStepperCard(
                     modifier = Modifier.padding(end = 2.dp),
                 )
                 BasicTextField(
-                    value = value,
-                    onValueChange = {
-                        onValueChange(sanitizeAdjustStockCountText(it, allowDecimal))
-                    },
+                    state = state,
+                    inputTransformation = inputTransformation,
                     textStyle = numberStyle,
-                    singleLine = true,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = if (allowDecimal) {
                             KeyboardType.Decimal
@@ -572,7 +583,7 @@ private fun StockStepperCard(
                         },
                         imeAction = ImeAction.Done,
                     ),
-                    keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
+                    onKeyboardAction = { dismissKeyboard() },
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .matchParentSize()

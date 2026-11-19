@@ -31,7 +31,6 @@ internal data class PastScheduleSelectorUiState(
     val showGeneratePastRecordsOption: Boolean,
     val enabled: Boolean,
     val interactive: Boolean = enabled,
-    val lockedMessage: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -71,16 +70,6 @@ private fun PastScheduleSelectorRows(
     state: PastScheduleSelectorUiState,
     onOptionSelected: (PastScheduleOption) -> Unit,
 ) {
-    val lockedMessage = state.lockedMessage
-    if (lockedMessage != null) {
-        PastScheduleLockedRow(
-            text = lockedMessage,
-            index = 0,
-            count = 1,
-        )
-        return
-    }
-
     // HrtSection owns the per-row segment positions, so the rows omit
     // index/count and inherit them.
     HrtSection(title = null) {
@@ -161,36 +150,6 @@ private fun pastScheduleOptionIconRes(option: PastScheduleOption): Int {
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun PastScheduleLockedRow(
-    text: String,
-    index: Int,
-    count: Int,
-) {
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
-        cornerShape = MaterialTheme.shapes.medium,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_calendar_lock),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        },
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Normal,
-        )
-    }
-}
-
 @Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun PastScheduleSelectorCardPreview() {
@@ -210,19 +169,6 @@ private fun PastScheduleSelectorCardPreview() {
                         selectedOption = PastScheduleOption.SHOW,
                         showGeneratePastRecordsOption = true,
                         enabled = true,
-                    ),
-                    onOptionSelected = {},
-                )
-                // Locked (e.g. viewing a group whose past schedule can't be edited).
-                PastScheduleSelectorCard(
-                    state = PastScheduleSelectorUiState(
-                        selectedOption = PastScheduleOption.SHOW,
-                        showGeneratePastRecordsOption = false,
-                        enabled = false,
-                        interactive = false,
-                        lockedMessage = stringResource(
-                            R.string.group_past_schedule_recreated_locked_note
-                        ),
                     ),
                     onOptionSelected = {},
                 )

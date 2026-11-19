@@ -12,13 +12,16 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.clearMocks
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,12 +29,15 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -70,11 +76,17 @@ class MedicationReminderReceiverTest {
         updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
     )
 
+    @After
+    fun tearDown() = clearAllMocks()
+
     @Before
     fun setUp() {
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { medicationGroupRepository.getGroups() } returns listOf(group)
+        coEvery { medicationGroupRepository.getGroup(group.uuid) } returns group
         coEvery { medicationLogRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        coEvery { medicationReminderScheduler.awaitsReminderDelivery(any(), any()) } returns true
+        coEvery { medicationReminderScheduler.skippedThrough(any()) } returns null
+        every { medicationReminderScheduler.claimAlertSound(any()) } returns true
     }
 
     @Test
@@ -91,32 +103,82 @@ class MedicationReminderReceiverTest {
     }
 
     @Test
-    fun aReminderDeliveredDaysLate_namesTheLatestDueDose_andReArmsFromNow() = runTest {
-        // A late delivery, or a clock moved ahead. On the alarm's own slot,
-        // Log now would save today's dose days back; re-armed from it, each
-        // daily slot since would fire at once.
-        val now = LocalDateTime.of(2026, 4, 23, 10, 0)
+    fun aReminderDeliveredDaysLate_postsNothing_andReArmsFromNow() = runTest {
+        // A late delivery, or a clock moved ahead: the latest due alert, 23 Apr 09:45, is
+        // 75 minutes old, so no longer current.
+        val now = LocalDateTime.of(2026, 4, 23, 11, 0)
 
         deliver(now)
 
-        assertEquals(listOf(group.uuid to LocalDateTime.of(2026, 4, 23, 9, 0)), postedSlots())
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(group.uuid, after = now) }
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(group.uuid, after = now.toInstant(ZoneOffset.UTC)) }
+    }
+
+    // The dose's last repeat, 09:45 with the default 3 × 15 min, so nothing later is due.
+    private val lastRepeat = scheduledAt.plusMinutes(45)
+
+    @Test
+    fun aDelivery50MinutesLate_stillPostsItsAlert() = runTest {
+        // As an inexact alarm can be: Android 12+ delivers one within an hour.
+        deliver(now = lastRepeat.plusMinutes(50), alertAt = lastRepeat)
+
+        assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
     }
 
     @Test
-    fun aReminderDeliveredOnTime_namesItsSlot_andReArmsFromASecondAfterIt() = runTest {
-        deliver(now = scheduledAt.plusNanos(250_000_000))
+    fun aDelivery61MinutesLate_postsNothing() = runTest {
+        deliver(now = lastRepeat.plusMinutes(61), alertAt = lastRepeat)
+
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(group.uuid, any()) }
+    }
+
+    @Test
+    fun anAlertIsCurrentForLessThanOneHour() = runTest {
+        deliver(now = lastRepeat.plusHours(1).minusNanos(1_000_000), alertAt = lastRepeat)
+        assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
+
+        clearMocks(reminderNotificationManager)
+        deliver(now = lastRepeat.plusHours(1), alertAt = lastRepeat)
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun aReminderDeliveredOnTime_namesItsDose_andArmsTheNextAlertAfterNow() = runTest {
+        val now = scheduledAt.plusNanos(250_000_000)
+
+        deliver(now = now)
 
         assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(group.uuid, after = now.toInstant(ZoneOffset.UTC)) }
+    }
+
+    @Test
+    fun aRepeat_postsTheSameDoseAgain_withSound() = runTest {
+        val repeatAt = scheduledAt.plusMinutes(15)
+
+        deliver(now = repeatAt.plusSeconds(1), alertAt = repeatAt)
+
+        assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
+        coVerify { medicationReminderScheduler.claimAlertSound(repeatAt.toInstant(ZoneOffset.UTC)) }
+        coVerify { reminderNotificationManager.showDoseReminderNotification(any(), any(), silent = false) }
+    }
+
+    @Test
+    fun aPlanSharingAnAlertTimeThatAlreadySounded_postsSilently() = runTest {
+        every { medicationReminderScheduler.claimAlertSound(any()) } returns false
+
+        deliver(now = scheduledAt)
+
         coVerify(exactly = 1) {
-            medicationReminderScheduler.rescheduleGroup(group.uuid, after = scheduledAt.plusSeconds(1))
+            reminderNotificationManager.showDoseReminderNotification(any(), any(), silent = true)
         }
     }
 
     @Test
-    fun aLateDelivery_toGroupsSharingATime_remindsEachOfItsOwnLatestDueDose() = runTest {
-        // A twice-daily group shares 09:00 with the once-daily one. The clock
-        // jumps from 08:00 to 22:00, and both 09:00 alarms fire at once.
+    fun aLateDelivery_toPlansSharingATime_remindsEachOfItsOwnLatestDueDose() = runTest {
+        // A twice-daily plan shares 09:00 with the once-daily one. The clock jumps from 08:00 to
+        // 21:05, and both 09:00 alarms fire at once.
         val twiceDaily = group.copy(
             uuid = UUID.fromString("5e1b7c2a-3d4f-4a6b-9c8d-0e1f2a3b4c5d"),
             schedule = MedicationGroupSchedule(
@@ -127,24 +189,100 @@ class MedicationReminderReceiverTest {
                 times = listOf(LocalTime.of(9, 0), LocalTime.of(21, 0)),
             ),
         )
-        coEvery { medicationGroupRepository.getGroups() } returns listOf(twiceDaily, group)
-        val now = scheduledAt.withHour(22)
+        coEvery { medicationGroupRepository.getGroup(twiceDaily.uuid) } returns twiceDaily
+        val now = scheduledAt.withHour(21).plusMinutes(5)
 
+        // Its own 21:00 dose is current.
         deliver(now, groupUuid = twiceDaily.uuid)
         assertEquals(listOf(twiceDaily.uuid to scheduledAt.withHour(21)), postedSlots())
 
-        // Not the twice-daily group's 09:00 too: Log now would save it at 22:00.
+        // The once-daily plan's 09:00 dose is hours past its last alert: nothing.
         clearMocks(reminderNotificationManager)
         deliver(now)
-        assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
     }
 
-    /** The alarm of [groupUuid]'s group for [scheduledAt], received at [now]. */
-    private fun TestScope.deliver(now: LocalDateTime, groupUuid: UUID = group.uuid) {
+    @Test
+    fun aDeliveryPastTheLastRepeat_andBeforeTheNextDose_postsNothing() = runTest {
+        // Armed for the 09:45 repeat, but it lands at 10:30 after a 45-minute delay: the dose's
+        // repeats are spent, and the next dose is tomorrow.
+        val lastRepeat = scheduledAt.plusMinutes(45)
+
+        deliver(now = scheduledAt.plusMinutes(90), alertAt = lastRepeat.plusMinutes(1))
+
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(group.uuid, any()) }
+    }
+
+    @Test
+    fun aSkippedDose_postsNothing() = runTest {
+        coEvery { medicationReminderScheduler.skippedThrough(group.uuid) } returns scheduledAt
+
+        deliver(now = scheduledAt.plusMinutes(15), alertAt = scheduledAt.plusMinutes(15))
+
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun anAlarmTheStoreNoLongerAwaits_postsNothing_butStillMarksAndReschedules() = runTest {
+        // As an old alarm after a zone change: its instant isn't the one stored, though it may
+        // share the new alarm's local time.
+        coEvery { medicationReminderScheduler.awaitsReminderDelivery(group.uuid, any()) } returns false
+
+        deliver(now = scheduledAt)
+
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+        coVerifyOrder {
+            medicationReminderScheduler.markReminderDelivered(group.uuid, scheduledAt.toInstant(ZoneOffset.UTC))
+            medicationReminderScheduler.rescheduleGroup(group.uuid, scheduledAt.toInstant(ZoneOffset.UTC))
+        }
+    }
+
+    @Test
+    fun aRepeatInFlightWhenItsDoseIsLogged_postsNothing() = runTest {
+        // The 09:00 dose, logged at 09:05; its 09:15 repeat's alarm was armed before. The log is
+        // dated 09:00, before the repeat: the receiver reads back to the dose.
+        val record = testMedicationLogEntry(
+            medicine = group.medications.single().medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = scheduledAt.plusMinutes(5).toInstant(ZoneOffset.UTC),
+            scheduledFor = scheduledAt,
+            scheduleTimeUuid = group.schedule.timeSlots.single().uuid,
+        )
+        // As Room answers: dated from the given time on.
+        coEvery { medicationLogRepository.getScheduledGroupEntriesSince(any()) } answers {
+            listOf(record).filterNot { entry -> entry.scheduledFor!!.isBefore(firstArg()) }
+        }
+
+        deliver(now = scheduledAt.plusMinutes(15), alertAt = scheduledAt.plusMinutes(15))
+
+        coVerify(exactly = 0) { reminderNotificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun aDoseInTheSpringForwardGap_ringsOnceTheClocksHaveSkipped() = runTest {
+        // New York skips 02:00 to 03:00 on Mar 8 2026; a 02:30 dose's alarm comes at 03:30 EDT.
+        val newYork = ZoneId.of("America/New_York")
+        val gapDose = group.copy(
+            schedule = group.schedule.copy(times = listOf(LocalTime.of(2, 30))).let { schedule ->
+                MedicationGroupSchedule(
+                    type = schedule.type,
+                    interval = 1,
+                    since = LocalDate.of(2026, 3, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(2, 30)),
+                )
+            },
+        )
+        coEvery { medicationGroupRepository.getGroup(group.uuid) } returns gapDose
+        val alertAt = Instant.parse("2026-03-08T07:30:00Z")
+
         handleDoseReminder(
-            groupUuid = groupUuid,
-            scheduledAt = scheduledAt,
-            now = now,
+            groupUuid = group.uuid,
+            alertAt = alertAt,
+            clock = { alertAt.plusSeconds(1) },
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,
@@ -155,6 +293,34 @@ class MedicationReminderReceiverTest {
             e2EstimateRepository = e2EstimateRepository,
             diagnosticsLogger = diagnosticsLogger,
             pendingResult = pendingResult,
+            zone = newYork,
+        )
+        runCurrent()
+
+        assertEquals(listOf(group.uuid to LocalDateTime.of(2026, 3, 8, 2, 30)), postedSlots())
+    }
+
+    /** [groupUuid]'s alarm for the alert at [alertAt] (UTC), received at [now]. */
+    private fun TestScope.deliver(
+        now: LocalDateTime,
+        groupUuid: UUID = group.uuid,
+        alertAt: LocalDateTime = scheduledAt,
+    ) {
+        handleDoseReminder(
+            groupUuid = groupUuid,
+            alertAt = alertAt.toInstant(ZoneOffset.UTC),
+            clock = { now.toInstant(ZoneOffset.UTC) },
+            deadline = TimeSource.Monotonic.markNow() + 8.seconds,
+            appScope = backgroundScope,
+            settingsRepository = settingsRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            reminderNotificationManager = reminderNotificationManager,
+            e2EstimateRepository = e2EstimateRepository,
+            diagnosticsLogger = diagnosticsLogger,
+            pendingResult = pendingResult,
+            zone = ZoneOffset.UTC,
         )
         runCurrent()
     }

@@ -11,6 +11,17 @@ class PkCalibrationEvaluation internal constructor(
 /** Presentation-free facade for one complete calibration computation. */
 object PkCalibrationEngine {
     fun evaluate(input: PkCalibrationInput): PkCalibrationEvaluation {
+        val evaluation = evaluateCollected(input)
+        if (input.futureLabIds.isEmpty()) return evaluation
+        // Set aside like any lab the fit can't use, whatever the state, so its row says why.
+        val future = input.futureLabIds.associateWith { PkCalibrationLabIgnoreReason.FUTURE }
+        return PkCalibrationEvaluation(
+            evaluation.result.copy(ignoredLabs = evaluation.result.ignoredLabs + future),
+            evaluation.evidence,
+        )
+    }
+
+    private fun evaluateCollected(input: PkCalibrationInput): PkCalibrationEvaluation {
         // Checked before labs: without doses, adding a lab would not help.
         if (input.doseEvents.isEmpty()) {
             return PkCalibrationEvaluation(

@@ -84,6 +84,12 @@ data class WidgetSnapshotRecord(
      * leave Today at 04:00, so a build that day's 04:00 run missed is stale too.
      */
     val fourAmAnchorDateEpochDay: Long,
+    /**
+     * When the rows were built. Noon and 18:00 change the sections without
+     * moving either date, so the rows are stale too once the next section
+     * start after it passes.
+     */
+    val builtAt: LocalDateTime,
     val doneCount: Int,
     val totalCount: Int,
     val manualCount: Int,
@@ -94,9 +100,15 @@ data class WidgetSnapshotRecord(
     // The app UI language (BCP-47 tag) captured when the snapshot was built. The
     // live-rendered widget chrome (section headers, "done" label, E2 label) resolves
     // its strings against this so it matches the medication/dose strings already baked
-    // into the snapshot. Persisted because below API 33 a freshly-spawned widget
-    // process can't read the per-app locale back from AppCompatDelegate/the app context.
+    // into the snapshot. Persisted so the chrome renders from the snapshot alone, in the
+    // language it was built in.
     val appLanguageTag: String,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
+    /**
+     * The Home data's `generatedAtEpochMillis` the rows were built from: the 15-minute
+     * worker rewrites a record whose stamp isn't the current state's. Null when
+     * unknown (a record from before the field), which never matches.
+     */
+    val sourceGeneratedAtEpochMillis: Long? = null,
 )

@@ -50,14 +50,18 @@ in the same sense the reminder planner is: given a `HomeSnapshotRecord`,
 the widget's estimate, a `SettingsState`, and a `LocalDateTime`, it
 returns a `WidgetSnapshotRecord` with no side effects.
 
-The builder is the only place the widget reads time-of-day cues:
+The builder takes its time-of-day cues from
+`buildMedicationDaySections(...)` (`MedicationDaySections.kt`, shared
+with Home), whose windows are in `MedicationDayTimeRange.kt`:
 
-- Before 6 AM, it walks the previous day's schedule with a 6 PM evening
-  cutoff and tags those rows with `WidgetDoseChip.LAST_NIGHT`.
-- After 6 PM, it walks tomorrow's schedule out to 6 AM and tags those
-  rows with `WidgetDoseChip.COMING_UP`.
+- Until noon of the current medication day (`isLastNightVisible`), the
+  previous medication day's evening rows (18:00 on, and for a night-owl
+  plan 00:00-04:00 too) are tagged `WidgetDoseChip.LAST_NIGHT`.
+- From 18:00 (for a night-owl plan, from midnight; `isComingUpVisible`),
+  the next medication day's first bucket (00:00-04:00, or for a
+  night-owl plan 04:00-12:00) is tagged `WidgetDoseChip.COMING_UP`.
 - Today's `scheduledEntries` and `unplannedEntries` from
-  `buildPlanDaySchedule(...)` become the main rows.
+  `sections.todaySchedule` become the main rows.
 
 Each `WidgetDoseRow` carries the identity (`groupUuid`,
 `scheduleTimeUuid`, `medicationUuid`, `entryUuid`), the resolved status
@@ -120,7 +124,7 @@ widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
 
 The store is also the
-[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L146)
+[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L565)
 for both widgets, so Glance composables read straight from the same
 file via `currentState<WidgetSnapshotState>()`. There is no in-memory
 cache to keep coherent.
@@ -322,9 +326,18 @@ from `widgetAppearanceRepository.currentEffective(null)` (and reads the
 **persisted** settings via `settingsRepository.getCurrentSettings()` for
 its own theme — not the eager `settingsState` placeholder, whose
 pre-DataStore defaults would let a cold-start Save overwrite real
-settings); Save replaces the default entry via `setDefault`, written
-through `@AppScope` so the persist outlives the synchronous
-Save→`finish()`.
+settings); Save sets `RESULT_OK` and replaces the default entry via
+`setDefault` in `@AppScope`, and the activity finishes only once that
+write has landed or failed, so a process death right after `finish()`
+can't lose a save the launcher was told about.
+
+The activity follows the app lock as `MainActivity` does, since its
+preview shows the widget's rows: Hide screen content applies to its
+window, and its content composes once the lock state is read, locked
+or not; while locked it is hidden under the lock screen
+(`HiddenUnderAppLock`), its drafts kept. Only once unlocked does it
+start the database open and, if the database key is lost, toast and
+close as the app does (`StartupPreloader.closeOnLostDatabaseKey`).
 
 ## Update triggers
 
@@ -336,7 +349,7 @@ graph TD
   homesnapshot[HomeSnapshotRepository<br/>.currentCache] --> manager
   settings[SettingsRepository<br/>.settingsState] --> manager
   timeformat[Settings.System.TIME_12_24<br/>ContentObserver] --> manager
-  midnight[WidgetMidnightRefreshScheduler<br/>explicit midnight alarm] --> datereceiver
+  midnight[WidgetMidnightRefreshScheduler<br/>section-start date alarm] --> datereceiver
   worker[WidgetDailyRefreshWorker<br/>15-min periodic + on start] --> repo
   worker -.stale, no current state.-> homesnapshot
   datereceiver[WidgetDateReceiver<br/>BOOT + DATE/TIME/TZ] --> homesnapshot
@@ -384,22 +397,48 @@ graph TD
 - **Wall-clock drift.**
   [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
-  one-shot at app start). It reads the persisted snapshot and checks
+  one-shot at app start). It reads the persisted snapshot, then the
+  clock (read the other way round, a record written in between would
+  look built after now), and checks
   whether there is none, whether its `anchorDateEpochDay` is before
   today's calendar date or its `fourAmAnchorDateEpochDay` before the
   medication day at 04:00 (a night-owl plan's rows leave Today at
-  04:00, whatever the plans are), or whether any row's `UPCOMING`/`DUE_SOON` status should
-  have transitioned by `now`. If so, it rebuilds the widget snapshot
-  from the current cache state and `now` through `writeWidgetSnapshot`
-  (the rows from its Home data, the estimate from its E2 inputs), with
-  no Room read and no solve. Without a current state that has both
-  parts it waits for `homeSnapshotRepository.rebuildNow()` instead, so
+  04:00, whatever the plans are), whether it was built in another time
+  zone (after westward travel its dates are ahead of today's, which the
+  date checks miss when the time-zone rebuild didn't publish), whether
+  `now` is before its `builtAt` (the clock was set back in the same zone
+  and the time-change rebuild didn't publish: its statuses, sections and
+  dates may all be ahead of now's; the second pass of a fall-back hour
+  rebuilds once too), whether a section start
+  (`nextWidgetDateRefreshAt`) passed after its `builtAt` (noon and
+  18:00 move no date, so a late, missed or unarmed date alarm is caught
+  here), whether any row's `UPCOMING`/`DUE_SOON` status should
+  have transitioned by `now`, measured between instants as the builder
+  measures it (`isDueSoon`, `isPastDue`), or whether its
+  `sourceGeneratedAtEpochMillis` (the Home data stamp it was built from)
+  isn't the current state's: the observer's write of that state threw,
+  and it only logs that. A record from before the stamp (widget codec 19)
+  reads with none, so the first run after the update rewrites it. If so,
+  it rebuilds the widget snapshot
+  from the current cache state through `writeWidgetSnapshot`, which
+  reads the clock under its lock (the rows from its Home data, the
+  estimate from its E2 inputs), with no Room read and no solve.
+  Without a current state that has both parts it waits for `homeSnapshotRepository.rebuildNow()` instead
+  (a cache built for a date after today, more than ten days ago, or in
+  another zone is not handed out as current: after the clock is set back
+  past its date and the time-change rebuild failed, the worker waits for a
+  run from Room rather than rebuilding the later date's rows), so
   the job, and the process with it, outlive the run: the run's publish
   routes back into the cache observer above, and a run that failed
   earlier is retried. It does the same when a newer publish superseded
   the state it read, which the observer writes; the run is then only
-  redundant. With fresh rows it just calls
-  `updateAllHrtWidgets` to re-render against the existing snapshot.
+  redundant. Whatever its rows, it also waits for `rebuildNow()` when
+  Home's cache is behind a write or missing a part while
+  `homeSnapshotRepository.rebuilding` is false: the rebuild worker gave
+  up after its retries, and the widget would otherwise keep the rows from
+  before the write until something else asks. Otherwise, with fresh rows it just calls
+  `updateAllHrtWidgets` to re-render against the existing snapshot, and so
+  does a rewrite that throws, after logging it.
   Either way it ends with `E2EstimateRepository.warmHome()`, which
   stores Home's estimate when a planned slot passed without a reminder
   (reminders off, or Doze delayed the alarm); with an unchanged key that
@@ -408,15 +447,16 @@ graph TD
 - **Date / time / timezone events.**
   [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
   is a manifest-declared `BroadcastReceiver` for the widget-owned
-  midnight alarm, `BOOT_COMPLETED`, plus best-effort
+  section-start date alarm, `BOOT_COMPLETED`, plus best-effort
   `ACTION_DATE_CHANGED`, `ACTION_TIME_CHANGED`, and
   `ACTION_TIMEZONE_CHANGED`. Android 8+ does not exempt
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the earlier of the next local midnight, 04:00 (when a night-owl
-  plan's rows leave Today), and noon, when `Last night`
-  stops being visible. A reboot clears that exact alarm, so the
+  for the next start of a `MedicationDayTimeRange` section: local
+  midnight, 04:00 (when a night-owl plan's rows leave Today), noon, when
+  `Last night` stops being visible, and 18:00, when `Coming up` opens
+  for midnight plans. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and, under `goAsync()`, waits for `rebuildNow()` within its budget,
   again leaning on the cache observer to fan out; out of budget, the
@@ -468,10 +508,13 @@ Two render paths exist in
   `updateAppWidget` reuses the launcher's existing `LazyColumn` collection
   adapter, the composed `RemoteViews` tree must keep the same shape across
   updates, or the adapter recycles a stale/blank item view.
-- **`updateAllHrtWidgets(context)`** — `glanceUpdateAll` for both sizes;
-  the worker and quick-log paths call it when the snapshot hasn't
-  changed (nothing new to push). The large widget below API 33 also reuses
-  `glanceUpdateAll` (for that one size) as its `pushHrtWidgets` fallback.
+- **`updateAllHrtWidgets(context)`** — reads the stored snapshot
+  (`WidgetSnapshotStore.readSnapshot()`) and repaints both sizes through
+  `pushHrtWidgets`; the daily refresh worker and quick-log paths call it
+  when the snapshot hasn't changed (nothing new to push), and a resize
+  calls it once the drag settles, since a bare
+  session `updateAll` stalls in the background. Below API 33 the large
+  widget's part of `pushHrtWidgets` is `glanceUpdateAll` for that one size.
 
 ## Quick-log action
 
@@ -497,18 +540,24 @@ the needed logs, and writes them via
 Persisting goes through `HomeSnapshotRepository.runHomeDataMutation`,
 which means the home-snapshot observer in `HomeWidgetManager`
 re-derives the widget snapshot — the callback itself does not need to
-touch the widget store. It then waits for `rebuildNow()` within what is
-left of its 8 s budget, so the run that read the log, and its warm-up
-of Home's estimate, finish before the callback does; out of budget, the
-run carries on in the app scope. The only direct `updateAllHrtWidgets`
-call in this path is the no-op short-circuit, taken when the slot is
-already fulfilled.
+touch the widget store. `saveNewEntries` decides again under the write
+lock, so a dose the notification or the app logged since the read saves
+nothing. Either way the callback then reschedules the plan's reminder
+(`MedicationReminderScheduler.rescheduleGroup`), whose pass cancels a
+reminder still naming the dose; the Home rebuild doesn't. After a save
+it waits for `rebuildNow()` within what is left of its 8 s budget, so
+the run that read the log, and its warm-up of Home's estimate, finish
+before the callback does; out of budget, the run carries on in the app
+scope. When nothing was saved (the slot already fulfilled) it only
+repaints with `updateAllHrtWidgets`. Any failure from the group read
+on, a database that can't open included, is logged, refreshes the
+widget and shows the "Unable to quick-log dose." toast.
 
 Because the persist runs through `saveNewEntries`, quick-logged doses
 deduct medicine stock for tracking-enabled medicines just like an
 in-app log, and the callback then shows the same worst-severity
-low-stock toast as the notification "Log all" action (see
-[reminders.md](reminders.md#notify)). The widget snapshot itself carries
+low-stock toast as the notification's "Log now" action (see
+[reminders.md](reminders.md#act)). The widget snapshot itself carries
 no stock data; low-stock state surfaces in the app (home section +
 toasts), not on the widget.
 
@@ -535,7 +584,7 @@ target the wrong group. Manual records (which carry
 non-nullable key is safe.
 
 `collapseToGroupRow` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L120)
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L498)
 is the seat that produces the representative row: it picks the
 strongest status (`DONE` > `OVERDUE` > `DUE_SOON` > `UPCOMING` >
 `LOGGED_OUT_OF_WINDOW`), forwards `groupUuid` / `scheduleTimeUuid`, and
@@ -545,7 +594,7 @@ group.
 ## Highlight deep link
 
 `widgetRowHighlightIntent` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L365)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L489)
 builds the `MainActivity` intent used when the user taps a widget row
 (as distinct from the log button). It uses a `hrttracker://` data URI
 plus `EXTRA_HIGHLIGHT_*` extras so the home screen can scroll to and
@@ -557,7 +606,7 @@ because Android coalesces `PendingIntent`s with equal `data`.
 ## Background widget surface
 
 `WidgetShell` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L63)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L149)
 applies the user-configurable background alpha and the rounded
 container, and wraps the entire widget in `clickable(actionStartActivity<MainActivity>())`
 so the top-level tap target is the app, with row-level and

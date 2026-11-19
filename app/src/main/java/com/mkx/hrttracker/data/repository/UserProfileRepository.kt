@@ -108,6 +108,7 @@ class UserProfileRepository @Inject constructor(
             ?: UserProfile()
     }
 
+    /** A typed weight, dated when it's saved. */
     suspend fun setWeight(
         originalValue: Double,
         originalUnit: WeightUnit,
@@ -120,7 +121,36 @@ class UserProfileRepository @Inject constructor(
                     weightOriginalValue = originalValue,
                     weightOriginalUnit = originalUnit.name,
                     updatedAtEpochMillis = now.toEpochMilli(),
-                    weightMeasuredAtEpochMillis = null,
+                    weightMeasuredAtEpochMillis = now.toEpochMilli(),
+                )
+            )
+        }
+    }
+
+    /**
+     * The unit switch with sync on: shows the weight in [unit], rounded to 0.1
+     * as a sync rounds it; its date stays. The caller then syncs, which rewrites
+     * it from Health Connect's own value. No-op without a weight, or when it
+     * would round to 0.
+     */
+    suspend fun setWeightUnit(unit: WeightUnit, now: Instant = Instant.now()) {
+        homeSnapshotRepository.runHomeDataMutation {
+            val dao = databaseHolder.get().userProfileDao()
+            val current = dao.getProfile() ?: return@runHomeDataMutation
+            val weightKg = current.weightKg ?: return@runHomeDataMutation
+            val value = roundWeightToTenth(weightKg / unit.kgPerUnit)
+            // Backup restore rejects a 0 weight.
+            if (value <= 0.0) return@runHomeDataMutation
+            dao.upsertProfile(
+                current.copy(
+                    // The kilograms follow the rounded value, as adoptHcWeight's do,
+                    // so the row stays one a backup's kg/unit check accepts.
+                    // ponytail: until the sync that follows lands (or after it
+                    // fails), the value is 0.1 off HC's own at most.
+                    weightKg = unit.toKg(value),
+                    weightOriginalValue = value,
+                    weightOriginalUnit = unit.name,
+                    updatedAtEpochMillis = now.toEpochMilli(),
                 )
             )
         }
@@ -147,10 +177,11 @@ class UserProfileRepository @Inject constructor(
      * Makes a Health Connect reading the weight (with sync on, HC is the source).
      * The value is rounded to 0.1 in the user's last unit and kg is derived from
      * that, which keeps the backup validator's kg/unit consistency check true.
-     * Returns false without writing when the reading is the one already stored
-     * (same time in millis, same rounded value), or when [isSyncOn] is false.
-     * That's checked inside the mutation, which manual edits share: sync turned
-     * off mid-sync then can't overwrite a weight typed right after.
+     * Returns false without writing when the stored weight already has the
+     * reading's time in millis and rounded value, typed or adopted, or when
+     * [isSyncOn] is false. That's checked inside the mutation, which manual edits
+     * share: sync turned off mid-sync then can't overwrite a weight typed right
+     * after.
      */
     suspend fun adoptHcWeight(
         weightKg: Double,
@@ -191,6 +222,7 @@ class UserProfileRepository @Inject constructor(
         return true
     }
 
+    // The reading is the stored weight: same time in millis, same rounded value.
     // Millis on both sides: the column stores millis, and a reading with
     // sub-millisecond precision must not look changed on every sync.
     private fun isStoredReading(
@@ -201,25 +233,6 @@ class UserProfileRepository @Inject constructor(
         val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
         return current?.weightMeasuredAtEpochMillis == measuredAt.toEpochMilli() &&
             current.weightOriginalValue == roundWeightToTenth(weightKg / unit.kgPerUnit)
-    }
-
-    /**
-     * Health Connect has no reading left, or sync was turned off: the weight
-     * stays, but it no longer comes from a reading, so its measured time goes.
-     * No-op when already unset.
-     */
-    suspend fun clearHcMeasuredAt(): Boolean {
-        if (databaseHolder.get().userProfileDao().getProfile()?.weightMeasuredAtEpochMillis == null) {
-            return false
-        }
-        return homeSnapshotRepository.runHomeDataMutation {
-            val dao = databaseHolder.get().userProfileDao()
-            val current = dao.getProfile()
-                ?.takeIf { it.weightMeasuredAtEpochMillis != null }
-                ?: return@runHomeDataMutation false
-            dao.upsertProfile(current.copy(weightMeasuredAtEpochMillis = null))
-            true
-        }
     }
 }
 

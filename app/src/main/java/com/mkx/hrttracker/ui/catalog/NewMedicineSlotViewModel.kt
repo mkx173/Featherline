@@ -35,9 +35,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,10 +48,9 @@ class NewMedicineSlotViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val clock: Clock,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(
-        NewMedicineSlotUiState(appliedZoneId = ZoneId.systemDefault())
-    )
+    private val _uiState = MutableStateFlow(freshState(ZoneId.systemDefault()))
     val uiState: StateFlow<NewMedicineSlotUiState> = _uiState.asStateFlow()
     private var saveGeneration = 0
 
@@ -65,21 +66,32 @@ class NewMedicineSlotViewModel @Inject constructor(
         medicineStockRepository: MedicineStockRepository,
         medicationReminderScheduler: MedicationReminderScheduler,
         initialAppliedZoneId: ZoneId,
+        clock: Clock = Clock.systemUTC(),
     ) : this(
         medicineRepository = medicineRepository,
         medicationLogRepository = medicationLogRepository,
         medicineStockRepository = medicineStockRepository,
         medicationReminderScheduler = medicationReminderScheduler,
+        clock = clock,
     ) {
-        _uiState.value = NewMedicineSlotUiState(appliedZoneId = initialAppliedZoneId)
+        _uiState.value = freshState(initialAppliedZoneId)
+    }
+
+    // Now on the clock, on the pass of a repeated fall-back hour it is on.
+    private fun freshState(zoneId: ZoneId): NewMedicineSlotUiState {
+        val now = clock.instant().atZone(zoneId)
+        return NewMedicineSlotUiState(
+            appliedDate = now.toLocalDate(),
+            appliedTime = now.toLocalTime().withSecond(0).withNano(0),
+            appliedZoneId = zoneId,
+            appliedOffset = now.offset,
+        )
     }
 
     fun reset() {
         saveGeneration += 1
         pendingManualLogCreatedMedicineUuid = null
-        _uiState.update {
-            NewMedicineSlotUiState(appliedZoneId = it.appliedZoneId)
-        }
+        _uiState.update { freshState(it.appliedZoneId) }
     }
 
     fun updateMedicineDraft(transform: (MedicinePickerUiState) -> MedicinePickerUiState) {
@@ -306,6 +318,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                         appliedDate = currentState.appliedDate,
                         appliedTime = currentState.appliedTime,
                         appliedZoneId = currentState.appliedZoneId,
+                        appliedOffset = currentState.appliedOffset,
                     )
                     if (saveResult.isSuccess) {
                         pendingManualLogCreatedMedicineUuid = null
@@ -457,9 +470,10 @@ data class NewMedicineSlotUiState(
     val doseInstructionDraft: DoseInstructionDraftUiState =
         defaultMedicineDraft().toDoseInstructionDraft(),
     val countText: String = "1",
-    val appliedDate: LocalDate = LocalDate.now(),
-    val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
+    val appliedDate: LocalDate,
+    val appliedTime: LocalTime,
     val appliedZoneId: ZoneId,
+    val appliedOffset: ZoneOffset?,
     val doseAmountDelta: Double? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,

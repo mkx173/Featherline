@@ -35,6 +35,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
@@ -108,6 +109,10 @@ class HomeSnapshotRepositoryTest {
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val e2EstimateRepository: E2EstimateRepository = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
+
+    // home_snapshot_metadata's epoch; the fixtures' parts carry 0.
+    @Volatile
+    private var metadataEpoch = 0L
     private val chartWindowOptionState = MutableStateFlow(HomeE2ChartWindowOption.SEVEN_DAYS)
 
     // The two files: what the load reads, valid at generation 0 unless a test
@@ -131,6 +136,7 @@ class HomeSnapshotRepositoryTest {
     @Before
     fun setUp() {
         coEvery { homeSnapshotGenerationStore.readGeneration() } answers { generationState.value }
+        coEvery { homeSnapshotGenerationStore.readEpoch() } answers { metadataEpoch }
         coEvery { homeSnapshotGenerationStore.incrementGeneration() } answers {
             (generationState.value + 1L).also { next -> generationState.value = next }
         }
@@ -298,25 +304,27 @@ class HomeSnapshotRepositoryTest {
         val otherZone = ZoneId.of(if (zoneId.id == "UTC") "Asia/Tokyo" else "UTC")
         val homeData = homeData(generation = 3L)
         val inputs = e2Inputs(generation = 3L)
-        val rules = listOf<(Long, LocalDate, ZoneId) -> String?>(
-            { generation, day, zone -> homeData.validityFailure(generation, day, zone) },
-            { generation, day, zone -> inputs.validityFailure(generation, day, zone) },
+        val rules = listOf<(Long, Long, LocalDate, ZoneId) -> String?>(
+            { generation, epoch, day, zone -> homeData.validityFailure(generation, epoch, day, zone) },
+            { generation, epoch, day, zone -> inputs.validityFailure(generation, epoch, day, zone) },
         )
         for (failure in rules) {
-            assertNull(failure(3L, today, zoneId))
-            assertNull(failure(3L, today.plusDays(10), zoneId))
-            assertNotNull(failure(3L, today.plusDays(11), zoneId))
-            assertNotNull(failure(3L, today.minusDays(1), zoneId))
-            assertNotNull(failure(3L, today, otherZone))
+            assertNull(failure(3L, 0L, today, zoneId))
+            assertNull(failure(3L, 0L, today.plusDays(10), zoneId))
+            assertNotNull(failure(3L, 0L, today.plusDays(11), zoneId))
+            assertNotNull(failure(3L, 0L, today.minusDays(1), zoneId))
+            assertNotNull(failure(3L, 0L, today, otherZone))
             // Behind the durable generation, or ahead of a reset one.
-            assertNotNull(failure(4L, today, zoneId))
-            assertNotNull(failure(2L, today, zoneId))
+            assertNotNull(failure(4L, 0L, today, zoneId))
+            assertNotNull(failure(2L, 0L, today, zoneId))
+            // At the generation, but from before a reset of the metadata.
+            assertNotNull(failure(3L, 7L, today, zoneId))
         }
         // No PK and no chart option in Home data's rule; no schema in the inputs'.
-        assertNull(homeData.validityFailure(3L, today, zoneId))
-        assertNotNull(homeData.copy(schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION - 1).validityFailure(3L, today, zoneId))
-        assertNull(inputs.copy(option = HomeE2ChartWindowOption.THIRTY_DAYS).validityFailure(3L, today, zoneId))
-        assertNotNull(inputs.copy(engineVersion = PK_ENGINE_VERSION + 1).validityFailure(3L, today, zoneId))
+        assertNull(homeData.validityFailure(3L, 0L, today, zoneId))
+        assertNotNull(homeData.copy(schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION - 1).validityFailure(3L, 0L, today, zoneId))
+        assertNull(inputs.copy(option = HomeE2ChartWindowOption.THIRTY_DAYS).validityFailure(3L, 0L, today, zoneId))
+        assertNotNull(inputs.copy(engineVersion = PK_ENGINE_VERSION + 1).validityFailure(3L, 0L, today, zoneId))
     }
 
     @Test
@@ -366,6 +374,51 @@ class HomeSnapshotRepositoryTest {
 
         assertEquals(1L, published.generation)
         assertEquals(1L, published.e2Inputs?.generation)
+    }
+
+    @Test
+    fun partsFromBeforeAMetadataReset_atItsGeneration0_areMissing_andRebuiltUnderTheNewEpoch() = runTest {
+        // home_snapshot_metadata read as corrupt: generation 0 again, under a new epoch,
+        // while both files are still at generation 0 from before the last write.
+        metadataEpoch = 42L
+        val repository = repository()
+
+        val loaded = repository.cache.filterNotNull().first()
+        assertEquals(0L, loaded.generation)
+        assertNull(loaded.homeData)
+        assertNull(loaded.e2Inputs)
+        val published = checkNotNull(repository.cache.first { state -> state?.homeData != null })
+
+        assertEquals(42L, published.homeData?.epoch)
+        assertEquals(42L, published.e2Inputs?.epoch)
+        assertEquals(listOf(42L), writtenSnapshots.map { record -> record.epoch })
+        assertEquals(listOf(42L), writtenInputs.map { record -> record.epoch })
+    }
+
+    @Test
+    fun filesFromBeforeTheEpoch_codec31AndInputs4_readAsMissing_andAreRebuiltOnce() = runTest {
+        val crypto = object : HomeSnapshotCrypto {
+            override fun encrypt(plaintext: ByteArray): ByteArray = plaintext
+            override fun decrypt(ciphertext: ByteArray): ByteArray = ciphertext
+        }
+        val snapshotSerializer = EncryptedRecordSerializer(crypto, "home_snapshot", HomeSnapshotCodec::encode, HomeSnapshotCodec::decode)
+        val inputsSerializer =
+            EncryptedRecordSerializer(crypto, "home_e2_inputs", HomeSnapshotCodec::encodeE2Inputs, HomeSnapshotCodec::decodeE2Inputs)
+        val codec31 = HomeSnapshotCodec.encode(homeData(generation = 0L)).also { bytes -> ByteBuffer.wrap(bytes).putInt(0, 31) }
+        val inputs4 = HomeSnapshotCodec.encodeE2Inputs(e2Inputs(generation = 0L)).also { bytes -> ByteBuffer.wrap(bytes).putInt(0, 4) }
+        coEvery { homeSnapshotStore.readSnapshot() } coAnswers { snapshotSerializer.readFrom(ByteArrayInputStream(codec31)).record }
+        coEvery { homeSnapshotStore.readE2Inputs() } coAnswers { inputsSerializer.readFrom(ByteArrayInputStream(inputs4)).record }
+        val repository = repository()
+
+        val loaded = repository.cache.filterNotNull().first()
+        assertNull(loaded.homeData)
+        assertNull(loaded.e2Inputs)
+        repository.cache.first { state -> state?.homeData != null && state.e2Inputs != null }
+        settle()
+
+        assertEquals(1, roomReads.get())
+        assertEquals(1, writtenSnapshots.size)
+        assertEquals(1, writtenInputs.size)
     }
 
     @Test
@@ -1148,6 +1201,96 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
+    fun aLabDatedAfterTheRun_isLeftOut_untilTheClockReachesIt_thenSolvedIn_whileHomeIsObserved() = runTest {
+        val labId = UUID(0L, 9L)
+        val labAt = now.plusHours(2)
+        room = calibrationRoom(now).apply { panels += labPanel(labId, labAt, 140.0) }
+        val timeSource = FakeAppTimeSource(now)
+        lateinit var estimates: E2EstimateRepository
+        val repository = repository(timeSource = timeSource, estimates = { estimates })
+        estimates = estimates(repository, clock = timeSource.asClock())
+        val minutes = MutableStateFlow(now)
+        fun tick(at: LocalDateTime) {
+            timeSource.setCurrentMinute(at)
+            minutes.value = at
+        }
+        var solves = 0
+        mockkObject(PkCalibrationEngine)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } answers {
+                solves++
+                callOriginal()
+            }
+            repository.rebuildNow()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                estimates.observeHome(minutes).collect {}
+            }
+            settle()
+            assertEquals(PkCalibrationLabIgnoreReason.FUTURE, writtenInputs.single().solved().ignoredLabs[labId])
+            // Saved, and published beside the fit.
+            assertTrue(writtenInputs.single().labs.any { lab -> lab.resultId == labId })
+
+            // A minute short of it: nothing to solve.
+            tick(labAt.minusMinutes(1))
+            settle()
+            assertEquals(1, writtenInputs.size)
+
+            // Its minute: a run solves it in, without the user doing anything.
+            tick(labAt)
+            awaitCondition { writtenInputs.size == 2 }
+        } finally {
+            unmockkObject(PkCalibrationEngine)
+        }
+
+        assertEquals(2, solves)
+        assertEquals(0L, repository.generation.value)
+        assertNotEquals(writtenInputs[0].fit?.fitId, writtenInputs[1].fit?.fitId)
+        assertNull(writtenInputs[1].solved().ignoredLabs[labId])
+    }
+
+    @Test
+    fun aLabWhoseTimePassedWhileAway_isSolvedIn_onTheReturn_andOnAColdStart() = runTest {
+        val labId = UUID(0L, 9L)
+        val labAt = now.plusHours(2)
+        val later = now.plusHours(3)
+        room = calibrationRoom(now).apply { panels += labPanel(labId, labAt, 140.0) }
+        val timeSource = FakeAppTimeSource(now)
+        lateinit var estimates: E2EstimateRepository
+        val repository = repository(timeSource = timeSource, estimates = { estimates })
+        estimates = estimates(repository, clock = timeSource.asClock())
+        repository.rebuildNow()
+        val beforeTheLab = writtenInputs.single()
+        assertEquals(PkCalibrationLabIgnoreReason.FUTURE, beforeTheLab.solved().ignoredLabs[labId])
+
+        // Home observed, then the app goes to the background, which stops
+        // the observation, and comes back after the lab's time.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            estimates.observeHome(MutableStateFlow(now)).collect {}
+        }.also { settle() }.cancel()
+        timeSource.setCurrentMinute(later)
+        settle()
+        assertEquals(1, writtenInputs.size)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            estimates.observeHome(MutableStateFlow(later)).collect {}
+        }
+        awaitCondition { writtenInputs.size == 2 }
+        assertNull(writtenInputs[1].solved().ignoredLabs[labId])
+
+        // A cold start after it, from the files the run before the lab wrote:
+        // they are valid, so only the observation asks for the run.
+        storedInputs = beforeTheLab
+        val coldTime = FakeAppTimeSource(later)
+        lateinit var coldEstimates: E2EstimateRepository
+        val cold = repository(timeSource = coldTime, estimates = { coldEstimates })
+        coldEstimates = estimates(cold, clock = coldTime.asClock())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            coldEstimates.observeHome(MutableStateFlow(later)).collect {}
+        }
+        awaitCondition { writtenInputs.size == 3 }
+        assertNull(writtenInputs[2].solved().ignoredLabs[labId])
+    }
+
+    @Test
     fun requestedFitEpoch_startsAtTheLoadedFits() = runTest {
         // Try again in an earlier process left epoch 3. An ordinary run must
         // keep it, or a stock edit would move every estimate key.
@@ -1347,10 +1490,11 @@ class HomeSnapshotRepositoryTest {
     private fun TestScope.estimates(
         repository: HomeSnapshotRepository,
         store: HomeE2EstimateStore = mockk(relaxed = true) { coEvery { read() } returns null },
+        clock: Clock = Clock.fixed(now.atZone(zoneId).toInstant(), zoneId),
     ) = E2EstimateRepository(
         homeSnapshotRepository = repository,
         store = store,
-        clock = Clock.fixed(now.atZone(zoneId).toInstant(), zoneId),
+        clock = clock,
         appScope = backgroundScope,
         defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
     )
@@ -1438,6 +1582,18 @@ class HomeSnapshotRepositoryTest {
         plannedSources = emptyList(),
         fit = fit,
     )
+
+    private fun E2InputsRecord.solved() = (checkNotNull(fit).outcome as FitOutcome.Solved).result
+
+    /** The clock [this] reads, for the estimates beside a repository on it. */
+    private fun FakeAppTimeSource.asClock(): Clock {
+        val source = this
+        return object : Clock() {
+            override fun instant(): Instant = source.now()
+            override fun getZone(): ZoneId = zoneId
+            override fun withZone(zone: ZoneId?): Clock = this
+        }
+    }
 
     /** Room's rows, read with each query's bounds. */
     private class RoomData(

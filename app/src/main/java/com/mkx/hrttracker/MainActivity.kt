@@ -1,15 +1,12 @@
 package com.mkx.hrttracker
 
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -41,7 +38,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +53,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.LocalHazePerformanceMode
+import com.mkx.hrttracker.ui.components.InsetsDispatchedAgainWhenShown
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -79,15 +76,18 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockBackHandler
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.security.appLockContentLayers
+import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.rememberAppLanguageContext
 import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
-import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -129,13 +129,24 @@ fun scheduledDoseRowHighlightTargetFromStorageValue(value: String): ScheduledDos
     }.getOrNull()
 }
 
+// Whether onCreate follows the deep link in its launch intent, checked on a device (API 35):
+// - A cold start has no saved state and parses.
+// - A restore, after process death or a config change, has saved state, and getIntent() is the
+//   task's original intent: a launcher or Recents relaunch would replay its old deep link.
+// - A fresh tap comes through onNewIntent, whether the app is alive or the task is being
+//   restored, where it lands right after the restored onCreate.
+// - A Recents relaunch of a task whose activity is gone has no saved state, but the history flag.
+internal fun parsesLaunchIntent(savedInstanceState: Bundle?, intent: Intent): Boolean =
+    savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val appLockViewModel: AppLockViewModel by viewModels()
     private val mainViewModel: MainViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
 
-    // True while a cold-start milestones deep link is waiting for its screen to settle;
+    // True while a milestones deep link that opened the app (a cold start, or a tap
+    // restoring a killed task) is waiting for its screen to settle;
     // read by the splash keep-on-screen condition (polled per frame — a plain field
     // suffices) and cleared by the NavHost's settle callback.
     @Volatile
@@ -177,36 +188,20 @@ class MainActivity : AppCompatActivity() {
         // Hilt-injected settingsRepository, which is only available once Hilt
         // has injected during super.onCreate().
         applyEdgeToEdgeSystemBars()
-        // Parse the launch intent once per delivered intent, not once per savedInstanceState
-        // == null:
-        // - FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY: a recents relaunch redelivers the task's
-        //   ORIGINAL intent, whose stale widget extras must never deep-link again —
-        //   including the cold recents relaunch of an expired task, where
-        //   savedInstanceState is null.
-        // - The ViewModel-lifetime marker skips the config-driven recreation (the
-        //   surviving ViewModel already handled the retained extras; re-parsing would yank
-        //   the user back to the deep link) but resets on process death, so a
-        //   widget/shortcut tap that recreates a killed task — which lands HERE with a
-        //   non-null savedInstanceState, because a dead instance can't receive
-        //   onNewIntent — still navigates.
-        // A genuine re-tap while the instance is alive is delivered through onNewIntent,
-        // which still parses unconditionally.
-        val parseLaunchIntent = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&
-                !mainViewModel.launchIntentParsed
+        // A cold start alone: see parsesLaunchIntent. A fresh tap comes through onNewIntent.
+        val parseLaunchIntent = parsesLaunchIntent(savedInstanceState, intent)
         // Cold start straight into Milestones (widget/shortcut): hold the splash until the
         // NavHost has built the back stack and the milestones screen has settled, so
         // neither the pre-navigation frame nor the push transition is ever visible. The
-        // SAME condition as the parse — every launch that will deep-link holds the splash
-        // (including the process-death task recreation, whose restored frame would
-        // otherwise flash before the navigation), and no launch that won't parse can hold
-        // it forever. The settle callback is deep-link-driven with a timeout backstop, so
-        // a held splash is always released.
+        // SAME condition as the parse — every launch that will deep-link holds the splash,
+        // and no launch that won't parse can hold it forever. The settle callback is
+        // deep-link-driven with a timeout backstop, so a held splash is always released.
+        // A tap restoring a killed task holds it from onNewIntent.
         awaitingMilestonesEntry = parseLaunchIntent &&
                 intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
         if (parseLaunchIntent) {
             parseWidgetHighlightIntent(intent)
         }
-        mainViewModel.launchIntentParsed = true
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
@@ -229,13 +224,18 @@ class MainActivity : AppCompatActivity() {
             LaunchedEffect(Unit) {
                 diagnosticsLogger.info(TAG, "main_activity_set_content_entered")
             }
+            // Each sheet and dialog window does too (hiddenUnderAppLock).
+            InsetsDispatchedAgainWhenShown()
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
             val appHazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)
 
-            DisposableEffect(settingsState.hideScreenContentEnabled) {
-                applyHideScreenContent(enabled = settingsState.hideScreenContentEnabled)
+            // From the app lock, not settingsState: it stays on until the setting has been read.
+            val hideScreenContentEnabled =
+                appLockViewModel.uiState.collectAsStateWithLifecycle().value.hideScreenContentEnabled
+            DisposableEffect(hideScreenContentEnabled) {
+                applyHideScreenContent(enabled = hideScreenContentEnabled)
                 onDispose { }
             }
 
@@ -252,25 +252,8 @@ class MainActivity : AppCompatActivity() {
                 onDispose { }
             }
 
-            val baseContext = LocalContext.current
-            val baseConfiguration = LocalConfiguration.current
-            val appLanguageTag = settingsState.appLanguageOption.languageTag
-            // Apply the chosen UI language in place through the composition
-            // locals so a language change re-localizes the whole UI — including
-            // date/time formatters that read LocalConfiguration — without
-            // recreating the activity (which would flash a blank screen).
-            val localizedContext = remember(baseContext, baseConfiguration, appLanguageTag) {
-                val locale = Locale.forLanguageTag(appLanguageTag)
-                val configuration = Configuration(baseConfiguration).apply { setLocale(locale) }
-                val localizedResources =
-                    baseContext.createConfigurationContext(configuration).resources
-                // Wrap the activity (rather than returning the config context) so the
-                // context still unwraps to the Activity — required by hiltViewModel()
-                // and LocalActivity — while serving localized resources.
-                object : ContextWrapper(baseContext) {
-                    override fun getResources(): Resources = localizedResources
-                }
-            }
+            val localizedContext =
+                rememberAppLanguageContext(settingsState.appLanguageOption.languageTag)
 
             val navigationLock = remember { NavigationLockState() }
             // The leave waiting on the discard dialog navigates this composition's controller.
@@ -314,30 +297,23 @@ class MainActivity : AppCompatActivity() {
                         if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
                             return@LaunchedEffect
                         }
-                        // Use the real wall clock rather than `mainUiState.now`,
-                        // which is truncated to the minute (the UI tick clock).
-                        // Scheduling exact alarms with a truncated now can place a
-                        // trigger up to 59s in the past, which AlarmManager fires
-                        // immediately -> a just-fired reminder/snooze re-fires when
-                        // the app is reopened within the same minute.
-                        val rescheduleNow = LocalDateTime.now()
                         when (mainUiState.homeSource) {
                             HomeInputSource.SNAPSHOT -> {
                                 diagnosticsLogger.info(
                                     TAG,
-                                    "main_activity_home_data_ready source=snapshot now=$rescheduleNow"
+                                    "main_activity_home_data_ready source=snapshot"
                                 )
                                 startupPreloaderProvider.get()
-                                    .startReminderRescheduleFromSnapshot(rescheduleNow)
+                                    .startReminderRescheduleFromSnapshot()
                             }
 
                             HomeInputSource.ROOM -> {
                                 diagnosticsLogger.info(
                                     TAG,
-                                    "main_activity_home_data_ready source=room now=$rescheduleNow"
+                                    "main_activity_home_data_ready source=room"
                                 )
                                 startupPreloaderProvider.get()
-                                    .startReminderRescheduleFromWarmDatabase(rescheduleNow)
+                                    .startReminderRescheduleFromWarmDatabase()
                             }
 
                             null -> Unit
@@ -356,7 +332,9 @@ class MainActivity : AppCompatActivity() {
                         ) {
                             withFrameNanos { }
                             diagnosticsLogger.info(TAG, "main_activity_first_home_frame_ready")
-                            startupPreloaderProvider.get().startAfterFirstHomeFrame()
+                            val startupPreloader = startupPreloaderProvider.get()
+                            startupPreloader.startAfterFirstHomeFrame()
+                            startupPreloader.closeOnLostDatabaseKey(this@MainActivity)
                         }
                     }
 
@@ -374,7 +352,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     when {
                         contentLayers.showInWindowLockScreen && !contentLayers.showHomeShell -> {
-                            BackHandler(enabled = true) { }
+                            AppLockBackHandler(enabled = true)
                             AppLockScreen(
                                 errorMessageRes = appLockUiState.errorMessageRes,
                                 onUnlockClick = appLockViewModel::requestUnlock
@@ -418,20 +396,14 @@ class MainActivity : AppCompatActivity() {
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.surface)
                             ) {
-                                Box(
+                                HiddenUnderAppLock(
+                                    locked = contentLayers.showInWindowLockScreen,
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .graphicsLayer {
                                             translationX = homeOffsetX.toFloat()
                                             alpha = homeAlpha
-                                        }
-                                        .then(
-                                            if (contentLayers.showInWindowLockScreen) {
-                                                Modifier.clearAndSetSemantics { }
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
+                                        },
                                 ) {
                                     val highlightEffectsEnabled =
                                         !contentLayers.showInWindowLockScreen &&
@@ -469,9 +441,10 @@ class MainActivity : AppCompatActivity() {
                                     label = "onboarding-overlay",
                                 ) {
                                     CompositionLocalProvider(
-                                        LocalChromeHazeState provides onboardingChromeHazeState
+                                        LocalChromeHazeState provides onboardingChromeHazeState,
                                     ) {
-                                        Box(
+                                        HiddenUnderAppLock(
+                                            locked = contentLayers.showInWindowLockScreen,
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .hazeSourceArea(onboardingChromeHazeState),
@@ -494,7 +467,7 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
 
-                                BackHandler(enabled = contentLayers.showInWindowLockScreen) { }
+                                AppLockBackHandler(enabled = contentLayers.showInWindowLockScreen)
                                 AnimatedVisibility(
                                     visible = contentLayers.showInWindowLockScreen,
                                     modifier = Modifier.fillMaxSize(),
@@ -602,20 +575,15 @@ class MainActivity : AppCompatActivity() {
             .resolveDarkTheme(systemInDarkTheme)
     }
 
-    private fun applyHideScreenContent(enabled: Boolean) {
-        if (enabled) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            setRecentsScreenshotEnabled(!enabled)
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // A tap restoring a killed task lands here right after the restored onCreate, before
+        // the first frame: hold the splash for Milestones as a cold start does. With the app
+        // running, the splash is gone and its condition no longer read, and the settle
+        // callback clears the flag.
+        if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)) {
+            awaitingMilestonesEntry = true
+        }
         parseWidgetHighlightIntent(intent)
     }
 

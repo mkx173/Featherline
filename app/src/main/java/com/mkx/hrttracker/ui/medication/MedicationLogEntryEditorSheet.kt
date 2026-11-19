@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -60,6 +61,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.scheduleOffsetMinutes
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
@@ -77,7 +79,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
@@ -126,6 +129,7 @@ fun MedicationLogEntryEditorSheet(
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
+    appliedOffset: ZoneOffset?,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
     onDoseAmountDeltaChange: (Double?) -> Unit = { },
@@ -152,9 +156,11 @@ fun MedicationLogEntryEditorSheet(
         )
     }
     val sourceGroupScheduleOffset = sourceGroupScheduledFor?.let { scheduledFor ->
-        medicationLogScheduleOffset(
-            scheduledFor = scheduledFor,
-            appliedAt = LocalDateTime.of(appliedDate, appliedTime),
+        sourceGroupScheduleOffset(
+            scheduledFor,
+            LocalDateTime.of(appliedDate, appliedTime),
+            appliedZoneId,
+            appliedOffset,
         )
     }
     val sourceGroupScheduleOffsetText = sourceGroupScheduleOffset?.let { offset ->
@@ -175,6 +181,10 @@ fun MedicationLogEntryEditorSheet(
         disclaimerKinds = emptyList(),
         onConfirm = onConfirm,
     ) {
+        // Back while it saves does nothing. In here, on the sheet window's dispatcher, it gets to
+        // Back ahead of the sheet's own handler, which would shrink the sheet with the swipe and,
+        // with the hide refused, leave it shrunk.
+        BackHandler(enabled = isSaving) { }
         val linkedApplicationType = doseInstructionDraft?.let { draft ->
             lockedMedicine?.let { medicine ->
                 resolvedApplicationTypeForDose(medicine.preparation.type, draft)
@@ -238,6 +248,7 @@ fun MedicationLogEntryEditorSheet(
             appliedDateText = dateFormatter(appliedDate),
             appliedTimeText = appliedTime.format(timeFormatter),
             appliedZoneId = appliedZoneId,
+            appliedOffset = appliedOffset,
             onAppliedDateChange = { if (!isSaving) onAppliedDateChange(it) },
             onAppliedTimeChange = { if (!isSaving) onAppliedTimeChange(it) },
         )
@@ -399,6 +410,7 @@ internal fun MedicationLogAppliedAtFields(
     appliedDateText: String,
     appliedTimeText: String,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
+    appliedOffset: ZoneOffset?,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
 ) {
@@ -487,8 +499,8 @@ internal fun MedicationLogAppliedAtFields(
 
     val deviceZone = remember { ZoneId.systemDefault() }
     val zoneLabelLocale = rememberAppLocale()
-    val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId) {
-        LocalDateTime.of(appliedDate, appliedTime).atZone(appliedZoneId).toInstant()
+    val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId, appliedOffset) {
+        ZonedDateTime.ofLocal(LocalDateTime.of(appliedDate, appliedTime), appliedZoneId, appliedOffset).toInstant()
     }
     val zoneLabel = remember(pickerInstant, appliedZoneId, deviceZone, zoneLabelLocale) {
         formatEditorZoneLabel(appliedZoneId, pickerInstant, deviceZone, zoneLabelLocale)
@@ -610,14 +622,29 @@ private fun MedicationEditorGroupInfoCard(
 }
 
 // ---------------------------------------------------------------------------
-// Schedule offset (used by Plan + tests).
+// Schedule offset (used by Home, Plan + tests).
 // ---------------------------------------------------------------------------
 
-internal fun medicationLogScheduleOffset(
+/**
+ * The editor's offset from the plan's slot: real minutes, as Home counts them, with the slot in
+ * [appliedZoneId], the zone the dose is logged in. [appliedAt] resolves as the save resolves it:
+ * on [preferredOffset]'s pass of a repeated fall-back hour.
+ */
+internal fun sourceGroupScheduleOffset(
     scheduledFor: LocalDateTime,
     appliedAt: LocalDateTime,
-): MedicationLogScheduleOffset? {
-    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, appliedAt)
+    appliedZoneId: ZoneId,
+    preferredOffset: ZoneOffset? = null,
+): MedicationLogScheduleOffset? = medicationLogScheduleOffset(
+    scheduleOffsetMinutes(
+        scheduledFor,
+        ZonedDateTime.ofLocal(appliedAt, appliedZoneId, preferredOffset).toInstant(),
+        appliedZoneId,
+    )
+)
+
+/** The label for [deltaMinutes] real minutes from the slot (scheduleOffsetMinutes), or null at 0. */
+internal fun medicationLogScheduleOffset(deltaMinutes: Long): MedicationLogScheduleOffset? {
     if (deltaMinutes == 0L) {
         return null
     }
@@ -704,6 +731,7 @@ private fun MedicationLogEntryEditorSheetPreview() {
             countText = "1",
             appliedDate = LocalDate.of(2026, 4, 22),
             appliedTime = LocalTime.of(20, 30),
+            appliedOffset = null,
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
             onConfirm = { },

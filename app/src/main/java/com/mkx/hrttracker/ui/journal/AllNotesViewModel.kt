@@ -31,7 +31,7 @@ class AllNotesViewModel @Inject constructor(
         .distinctUntilChanged()
 
     private val noteMutationError = MutableStateFlow<JournalNoteMutation?>(null)
-    private val noteSaveFailureToken = MutableStateFlow(0)
+    val noteSaves = NoteSaves()
 
     private val selectedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
     private val isDeletingSelected = MutableStateFlow(false)
@@ -39,7 +39,7 @@ class AllNotesViewModel @Inject constructor(
 
     // The three selection/delete flows are grouped into one inner combine so the outer combine
     // stays within Kotlin's typed `combine` overload limit (max 5 sources) alongside the
-    // notes+today and error/token flows.
+    // notes+today and error flows.
     val uiState: StateFlow<AllNotesUiState> = combine(
         combine(
             journalRepository.observeNotesOnOrAfter(LocalDate.MIN),
@@ -59,11 +59,10 @@ class AllNotesViewModel @Inject constructor(
             )
         },
         noteMutationError,
-        noteSaveFailureToken,
         combine(selectedDates, isDeletingSelected, deleteSelectedSuccessCount) { selected, deletingSelected, successCount ->
             NoteSelectionUiState(selected, deletingSelected, successCount)
         },
-    ) { state, error, token, selection ->
+    ) { state, error, selection ->
         // Reconcile the selection against the notes actually present (mirrors History's
         // visibleSelection). A selected date whose note disappeared while away — the VM is
         // activity-scoped, so the selection outlives navigating off this screen and deleting the
@@ -71,7 +70,6 @@ class AllNotesViewModel @Inject constructor(
         // on a row that no longer exists.
         state.copy(
             noteMutationError = error,
-            noteSaveFailureToken = token,
             selectedDates = reconcileNoteSelection(
                 selectedDates = selection.selectedDates,
                 monthGroups = state.monthGroups,
@@ -85,9 +83,18 @@ class AllNotesViewModel @Inject constructor(
         initialValue = AllNotesUiState(today = appTimeSource.currentMinute.value.toLocalDate()),
     )
 
-    fun saveNote(date: LocalDate, text: String) = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(date, text) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.SAVE) }
+    // Returns the save's id in [noteSaves], as JournalViewModel.saveNote does.
+    fun saveNote(date: LocalDate, text: String): Long {
+        val id = noteSaves.start()
+        viewModelScope.launch {
+            runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(date, text) } }
+                .onSuccess { noteSaves.settle(id, landed = true) }
+                .onFailure {
+                    failNoteWrite(it, JournalNoteMutation.SAVE)
+                    noteSaves.settle(id, landed = false)
+                }
+        }
+        return id
     }
 
     fun deleteNote(date: LocalDate) = viewModelScope.launch {
@@ -138,9 +145,6 @@ class AllNotesViewModel @Inject constructor(
         if (error is CancellationException) throw error
         if (error !is Exception) throw error
         noteMutationError.value = mutation
-        if (mutation == JournalNoteMutation.SAVE) {
-            noteSaveFailureToken.value += 1
-        }
     }
 }
 

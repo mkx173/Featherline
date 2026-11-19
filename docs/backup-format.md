@@ -92,9 +92,10 @@ not a defence against an in-process attacker.
 `SecureRandom`, never reused; 128-bit auth tag appended to the
 ciphertext by JCA. The full 65-byte header is the AAD, so tampering
 with any declared parameter fails the tag check. On decrypt, a tag
-mismatch becomes `IOException("Unable to decrypt the selected backup
-file.")` — wrong password and tampered ciphertext are not
-distinguished externally.
+mismatch becomes `BackupDecryptionException`, an `IOException` — wrong
+password and tampered ciphertext are not distinguished externally.
+It is the only failure Settings reports as "Wrong password or
+corrupted backup file".
 
 The plaintext fed into AES-GCM is `gzip(json)`, not the JSON. The
 header's uncompressed-length field is the pre-gzip JSON byte count;
@@ -127,7 +128,8 @@ flattened into the parent's JSON.
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, AMOLED pure-black, `hazeBlurEnabled`, reminders,
+  adaptive color, AMOLED pure-black, `hazeBlurEnabled`,
+  `classicNavigationBarEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
@@ -138,22 +140,41 @@ flattened into the parent's JSON.
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags
   `stockNudgeEnabled` / `stockNudgeUserEnabled`,
-  `healthConnectWeightSyncEnabled` (default false), and the home-card layout
-  `homeCardOrder` / `homeCardHidden`). The legacy
+  `healthConnectWeightSyncEnabled` (absent before weight sync; the restore
+  then keeps the device's setting), `reminderRepeatCount` /
+  `reminderRepeatIntervalMinutes` (the reminder repeats, 0-4 and 15-60 in
+  steps of 5; both absent before repeats, and the restore then keeps the
+  device's; an interval under 15, as earlier builds offered, restores as
+  15 with its count; one without the other, or any other value outside
+  those, rejects the backup), and the home-card layout
+  `homeCardOrder` / `homeCardHidden`). `appLanguageOption` is an
+  `AppLanguageOption` name, or `FOLLOW_SYSTEM` when the app follows the
+  phone's language; it came without a snapshot version bump. The restore
+  follows the system for `FOLLOW_SYSTEM` and for a name it doesn't know (a
+  language from a later release) instead of rejecting the backup, and keeps
+  an older backup's explicit language. `CZECH` came after `FOLLOW_SYSTEM`,
+  also without a bump: a build without it restores it as a name it doesn't
+  know. An older build that reads v8
+  restores `FOLLOW_SYSTEM` (and `CZECH`) as the phone's language mapped to
+  a supported one, chosen explicitly, as for any name it doesn't know
+  (lenient since v1.4.0); released builds up to v1.4.2 reject a v8 backup
+  by its version anyway. The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
   versions can read new backups; on restore, a present `widgetAppearance`
   wins and backups predating it restore through the legacy fields.
   `screenLockProtectionEnabled`
   is intentionally excluded — app-lock stays local to the device that set
-  it. The nudge's running dismiss count is also excluded: restore clears it
+  it. Restore ignores the grace period and hide-screen-content too, so a
+  backup can't loosen the device's privacy; exports still write both
+  because older app versions require them. The nudge's running dismiss count is also excluded: restore clears it
   so the auto-disable threshold starts fresh on the new device.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries
   `weightKg` plus the original value + unit for display round-trip, and
-  `weightMeasuredAtEpochMillis` (the adopted Health Connect reading's time).
+  `weightMeasuredAtEpochMillis` (the weight's date, typed or synced).
   That field was added without a snapshot version bump: a backup without it
-  restores null, which only blanks the "Measured" time until the next sync.
+  restores null, an undated weight until the next typed or synced one.
 - `BackupMedicineSnapshot` →
   [`MedicineEntity`](data-model.md#medicineentity); the canonical
   identity row that most group items and log entries point at via
@@ -308,15 +329,21 @@ runs on `Dispatchers.IO`. Validation is layered into four passes so
 incompatible files are rejected at the cheapest detection point.
 
 1. **Buffer the file.** SAF picker grants are single-use, so the
-   bytes are read into memory up front; later passes re-read the
-   buffer.
+   bytes are read into memory up front (`loadEncryptedBackupBytes`);
+   later passes re-read the buffer (`validateBackupBytes`, then
+   `restoreBackupBytes` with the password). The read stops at once on a
+   file that doesn't start with the magic, and fails past 192 MiB
+   (`MAX_ENCRYPTED_BACKUP_BYTES`); running out of heap before the
+   database is touched fails only the restore, as an `IOException`.
 2. **Pass 1 — envelope shape.**
    [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    parses magic, version, KDF / cipher / compression identifiers, and
    Argon2 parameters. Failures wrap as
    `IncompatibleBackupFileException` so the UI can distinguish "not a
-   backup" from "wrong password". Runs before the password dialog
-   opens.
+   backup" from "wrong password". A container version above this
+   app's throws `NewerBackupVersionException`, which Settings shows as
+   "Unable to restore, please try again", as other rare failures. Runs
+   before the password dialog opens.
 3. **Pass 2 — decrypt + auth-tag verify.**
    [`decrypt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    derives the key from the entered password and the envelope's salt,
@@ -330,15 +357,32 @@ incompatible files are rejected at the cheapest detection point.
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
-     (currently `2..7`); v1 backups are rejected here with no
-     migration path because the medicine-identity refactor removed
+     (currently `2..8`). One above it is checked first, right after
+     decryption, and throws `NewerBackupVersionException`; v1
+     backups are rejected here with no migration path because the
+     medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
      `app.packageName` must match the stable backup identity
      (`com.mkx.hrttracker`), not the installed package name.
    - parseability: enum-name resolution, UUID parsing, `DayOfWeek`
      and `ZoneId.of` round-trips
    - value sanity: positive-finite doses, including `equivalentE2Mg`
-     on log entries when present
+     on log entries when present; plan dose times with `hourOfDay` in
+     0..23 and `minuteOfHour` in 0..59; a plan's item counts, each
+     above 0 and, summed over the items of one medication signature
+     (medicine, route, dose), within an `Int` (the editor keeps one
+     item per signature; past it the sum wraps, and Home throws while
+     Plan, Batch Add and the reminder pass never return); a plan's dates in the years
+     0001..9999: its `sinceEpochDay`, each slot's effective start and
+     the archive time (the start date picker offers 1900..2100 and other
+     starts are the clock or an existing start, so only a hand-edited
+     file goes past them; a plan date far beyond would overflow the
+     reminder pass or throw in Home's and Plan's dose lists); a log's
+     `scheduledForIso` and note and tracked-date `dateIso` in the same
+     years (no writer leaves them). A log's `appliedAtEpochMillis` and a
+     panel's `collectedAtInstantEpochMillis` are not bounded: an import
+     by an older build can have stored a far-off one, and a backup the
+     app wrote always restores
    - FK consistency: the medicines section is consumed first, and the
      resulting `{medicineUuid → MedicineEntity}` map is what every
      subsequent group-item and log-entry check resolves against —
@@ -355,9 +399,12 @@ incompatible files are rejected at the cheapest detection point.
      are allowed — read-time ordering tie-breaks); tracked-date and
      note `dateIso` values must parse as `LocalDate`; note UUIDs must
      parse and be unique; note text is trimmed and must not be blank;
-     and note dates must be unique within the file. Restore also
-     validates that journal `updatedAtEpochMillis` values are not before
-     their corresponding `createdAtEpochMillis` values. Journal
+     and note dates must be unique within the file. A tracked date's,
+     note's or medicine's `updatedAtEpochMillis`, and a medicine's
+     `archivedAtEpochMillis`, before its `createdAtEpochMillis` is raised
+     to `createdAtEpochMillis` rather than rejected: the app writes such
+     rows itself when a row is edited after the wall clock was set back.
+     A medicine's `createdAtEpochMillis` must not be negative. Journal
      `iconKey`, `paletteKey`, and `heroBackgroundKey` values are
      preserved as stored so newer key values can round-trip; the app's
      read-time mappers own fallbacks for unknown keys.
@@ -380,26 +427,48 @@ incompatible files are rejected at the cheapest detection point.
    unsupported unit fails before the database is touched. It also
    parses `homeE2ChartWindow` as a `HomeE2ChartWindowOption`, so an
    unknown chart-window name rejects the backup during validation.
-6. **Cancel visible reminders.** Any posted dose-reminder notification
-   references slot UUIDs from the pre-restore database;
-   `cancelAllDoseReminderNotifications` runs before any mutation so a
-   tap afterwards doesn't dispatch with stale state.
-7. **Restore in one transaction.** Wrapped in
-   `homeSnapshotRepository.runHomeDataMutation { databaseHolder
-   .runTransaction { … } }`. The transaction deletes every backed-up
+6. **Mark a reconcile owed.** Inside
+   `homeSnapshotRepository.runHomeDataMutation`,
+   `markReconcilePending` stores a flag, so the next app launch runs a
+   full reminder pass if the process dies before the restore's own.
+   It is best-effort: if the flag can't be stored, the restore goes
+   ahead without it, since a cold start runs a full pass anyway.
+   Reminders on screen are left alone; the reschedule in step 9
+   reconciles them with the restored data.
+7. **Restore in one transaction.** Still inside the mutation,
+   `databaseHolder.runTransaction { … }` deletes every backed-up
    table in dependency order, including `notes` and `tracked_dates`,
    then inserts the validated entities. Journal rows are restored via
    `JournalDao.insertTrackedDates` and `JournalDao.insertNotes` after
    the core medication and blood-test rows are back in place.
    Either the whole import lands or none of it does.
 8. **Restore settings.** `settingsRepository.restoreSettings` writes
-   the validated `BackupSettingsSnapshot` to DataStore. Outside the
-   Room transaction — DataStore is a separate storage layer.
-9. **Best-effort reminder re-scheduling.** `rescheduleAll` and
-   `clearAllSnoozes` are called; any non-`CancellationException`
-   throwable is logged via `AppDiagnosticsLogger.warning` rather than
-   surfaced. The data has already committed, and the alarm scheduler
-   reconciles on the next app launch.
+   the validated `BackupSettingsSnapshot` to DataStore, inside the
+   mutation but outside the Room transaction — DataStore is a separate
+   storage layer. From here on the data is restored, so a failure,
+   even a `CancellationException` (the mutation is `NonCancellable`),
+   no longer fails the restore; it is reported as `FOLLOW_UP_FAILED`
+   (step 9).
+9. **Best-effort follow-ups.** After the mutation, in
+   `withContext(NonCancellable)` so a cancelled caller can't skip
+   them: the widget appearance write, `clearSkips` (each plan's skip
+   watermark was this phone's), then a forced
+   `ReminderCapabilityReconciler.reconcile` with `repostShown`, then
+   the Health Connect reconcile. The capability reconcile turns
+   reminders off when the phone has no notification access, though the
+   backup had them on (decision B11), and runs `rescheduleAll`, which
+   keeps a reminder still due in the restored data, drops the rest,
+   and reposts every one it keeps, silently, so none shows the old
+   language or Hide medication details (decision B3). A process death
+   before it leaves the reconcile mark owed, and the next start's pass
+   reposts likewise. A failed step is logged via `AppDiagnosticsLogger.warning`,
+   and the others still run. The restore then returns
+   `BackupRestoreOutcome.FOLLOW_UP_FAILED` instead of `RESTORED`,
+   and Settings shows "Unable to restore, please try again", the same
+   as any failure that is neither the password's nor the file's (a file
+   that isn't a backup, or fails a validation pass, shows "Selected file
+   is not a compatible backup"). A reschedule that didn't
+   run is left to the next app launch.
 
 ## Forward-compatibility policy
 
@@ -407,13 +476,19 @@ incompatible files are rejected at the cheapest detection point.
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
-`pkCalibrationIntroSeen`,
+`pkCalibrationIntroSeen`, `healthConnectWeightSyncEnabled`,
+`reminderRepeatCount` / `reminderRepeatIntervalMinutes`,
 `homeE2ChartWindow`, `homeCardOrder` / `homeCardHidden`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
 feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
 actual-amount feature) all shipped without a snapshot-version bump.
+`replacedByGroupUuid` and `recreatedFromGroupUuid` are now only carried:
+the app no longer reads them or sets them on a new plan, but exports and
+restores them as the backup has them (the restore no longer derives a
+missing `recreatedFromGroupUuid` from its source's `replacedByGroupUuid`),
+so the format is unchanged.
 `BackupSnapshot.trackedDates` and `BackupSnapshot.notes` are the same
 kind of additive change: both top-level lists default to `emptyList()`,
 so v2-v5 backups that omit them restore with no journal rows, and
@@ -481,7 +556,9 @@ worth it.
 or primitives change. KDF and cipher are recorded as identifier bytes
 ([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt),
 [`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)),
-so additions can extend the readable set without bumping. A bump is
+so additions can extend the readable set without bumping. An older
+reader takes a KDF, cipher or compression id above its known ones for
+`NewerBackupVersionException` ("Unable to restore, please try again"). A bump is
 reserved for changes that break parser invariants — different field
 ordering, a different fixed-header length, a different AAD contract.
 The medicine-identity refactor did *not* touch the envelope; only the
@@ -499,8 +576,8 @@ inner snapshot version moved.
 | v3 | v4, v5, v6, v7, or v8 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
-| Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |
-| v3 | Future snapshot version | This version | Rejected by `toValidatedSnapshot`'s `snapshotVersion` range check. |
+| Future | any | This version | Rejected at `parseContainer` with `NewerBackupVersionException`: "Unable to restore, please try again". |
+| v3 | Future snapshot version | This version | Rejected right after decryption with `NewerBackupVersionException`: "Unable to restore, please try again". |
 
 Writers only emit current envelope + current snapshot version. The
 asymmetry is intentional: older-into-newer restores are supported down

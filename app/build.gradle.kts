@@ -146,7 +146,9 @@ android {
     }
 
     androidResources{
-        generateLocaleConfig = true
+        // res/xml/locales_config.xml lists only the languages the app can show (AppLanguageOption);
+        // a generated one would list every values-* folder.
+        generateLocaleConfig = false
     }
 
     bundle {

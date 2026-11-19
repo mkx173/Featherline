@@ -103,6 +103,9 @@ fun AddDateSheet(
     var selectedPalette by remember(anchor) { mutableStateOf(anchor?.palette) }
     var pinned by remember(anchor) { mutableStateOf(initiallyPinned) }
     var isDeleteConfirmationVisible by remember { mutableStateOf(false) }
+    // Set on the first Save and read at click time, so a Save that TalkBack or a keyboard
+    // activates again while the sheet hides adds nothing.
+    var isConfirmed by remember { mutableStateOf(false) }
 
     val trimmedName = name.trim()
     // Date always has a value (defaults to today), so name is the only gate.
@@ -150,12 +153,13 @@ fun AddDateSheet(
         onDismissRequest = onDismissRequest,
         onCloseClick = closeSheet,
         fillAvailableHeight = false,
-        isSaving = false,
+        isSaving = isConfirmed,
         confirmEnabled = canConfirm,
         destructiveButtonText = onDelete?.let { stringResource(R.string.journal_delete_date) },
         onDestructiveAction = onDelete?.let { { isDeleteConfirmationVisible = true } },
         onConfirm = {
-            if (canConfirm) {
+            if (canConfirm && !isConfirmed) {
+                isConfirmed = true
                 onConfirm(trimmedName, selectedIcon.storageKey, selectedDate, selectedPalette?.name, pinned)
                 closeSheet()
             }

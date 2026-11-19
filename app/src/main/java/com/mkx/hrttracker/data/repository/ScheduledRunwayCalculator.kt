@@ -9,7 +9,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.RunwayProjection
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.toStorageValue
 import java.time.Instant
@@ -28,10 +28,6 @@ object ScheduledRunwayCalculator {
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        // Preview-only: a future scheduled slot the caller is about to fulfill with
-        // a not-yet-persisted log. Excluded from demand so a pre-deducted preview
-        // stock is not charged twice for the same occurrence.
-        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): RunwayProjection {
         if (!medicine.stock.trackingEnabled) return RunwayProjection.NoSchedule
 
@@ -44,7 +40,6 @@ object ScheduledRunwayCalculator {
             nowLocal = nowLocal,
             horizonEnd = today.plusDays(HORIZON_DAYS),
             zoneId = zoneId,
-            fulfilledSlot = fulfilledSlot,
         )
         if (doses.isEmpty()) return RunwayProjection.NoSchedule
 
@@ -74,7 +69,6 @@ object ScheduledRunwayCalculator {
         nowLocal: LocalDateTime,
         horizonEnd: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): List<MedicineDoseOccurrence> {
         if (!medicine.stock.trackingEnabled) return emptyList()
 
@@ -96,37 +90,20 @@ object ScheduledRunwayCalculator {
                 // `now` instant made runway jump up the moment a slot went by
                 // unlogged; a date boundary keeps it stable through the day.
                 if (occurrence.scheduledFor.toLocalDate().isBefore(nowLocal.toLocalDate())) continue
-                // Drop the slot a not-yet-saved preview log will fulfill, so its
-                // demand is not double-counted against already-deducted stock.
-                if (fulfilledSlot != null &&
-                    fulfilledSlot.groupUuid == group.uuid &&
-                    fulfilledSlot.scheduleTimeUuid == occurrence.scheduleTimeUuid &&
-                    fulfilledSlot.scheduledFor == occurrence.scheduledFor
-                ) {
-                    continue
-                }
-
                 val planSlot = MedicationGroupSlotKey(
                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
                     scheduledFor = occurrence.scheduledFor,
                 )
-                val candidateLogs = logIndex.candidatesFor(group.uuid, planSlot)
-                val loggedCounts = candidateLogs
-                    .asSequence()
-                    .filter { entry ->
-                        isEntryFulfillingPlanSlot(
-                            group = group,
-                            slot = planSlot,
-                            entry = entry,
-                            zoneId = zoneId,
-                        )
-                    }
-                    .groupBy(MedicationSignature::fromLogEntry)
-                    .mapValues { (_, entries) -> entries.sumOf { entry -> entry.count } }
+                // A late record's stock is already deducted, so it covers its slot's
+                // demand even though it doesn't count as on time.
+                val missingCounts = missingSlotCounts(
+                    group = group,
+                    slot = planSlot,
+                    entries = logIndex.candidatesFor(group.uuid, planSlot),
+                )
 
                 required.forEach { (signature, requirement) ->
-                    val remaining = requirement.requiredCount -
-                            loggedCounts.getOrDefault(signature, 0)
+                    val remaining = missingCounts[signature] ?: 0
                     if (remaining > 0) {
                         doses += MedicineDoseOccurrence(
                             scheduledFor = occurrence.scheduledFor,
@@ -268,17 +245,6 @@ internal data class MedicineDoseOccurrence(
     val scheduleTimeUuid: UUID,
     val signatureKey: String,
     val perDose: Double,
-)
-
-/**
- * Identifies a single scheduled occurrence a preview is about to fulfill with a
- * log that has not been persisted yet. Used to exclude that occurrence from
- * runway demand so a pre-deducted preview stock is not charged for it twice.
- */
-data class FulfilledScheduledSlot(
-    val groupUuid: UUID,
-    val scheduleTimeUuid: UUID,
-    val scheduledFor: LocalDateTime,
 )
 
 internal fun initialSimulatedStock(medicine: Medicine): SimulatedStock {

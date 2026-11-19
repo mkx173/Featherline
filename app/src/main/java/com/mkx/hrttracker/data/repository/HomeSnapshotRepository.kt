@@ -89,19 +89,21 @@ class HomeSnapshotRepository @Inject constructor(
      * each run's publish; null until the load. A state is current while its
      * generation equals [generation]. After a mutation the old state stays,
      * for the screens already showing it, until the mutation's run publishes.
-     * Nothing checks the date or the zone again in memory: a part goes
-     * invalid by date only after ten days, and the date and zone broadcasts
-     * (WidgetDateReceiver, MedicationReminderRescheduleReceiver) ask for a
-     * run at every date and zone change.
+     * The date and zone broadcasts (WidgetDateReceiver,
+     * MedicationReminderRescheduleReceiver) ask for a run at every date and
+     * zone change; until it publishes, [currentCache] and [currentState]
+     * withhold Home data the load's date rule would reject (see [handout]).
      */
     val cache: StateFlow<HomeCacheState?>
         get() = cacheState
     private val cacheState = MutableStateFlow<HomeCacheState?>(null)
 
-    /** [cache] while it is current: null before the load, and from a mutation until its run publishes. */
-    val currentCache: Flow<HomeCacheState?> = combine(cacheState, generationState) { state, current ->
-        state?.takeIf { it.generation == current }
-    }.distinctUntilChanged()
+    /**
+     * [cache] while it is current: null before the load, from a mutation until
+     * its run publishes, and while its Home data fails the date rule (see [handout]).
+     */
+    val currentCache: Flow<HomeCacheState?> = combine(cacheState, generationState, ::handout)
+        .distinctUntilChanged()
 
     /**
      * The fit epoch Try again asks for. Every run reads it when it starts,
@@ -112,6 +114,9 @@ class HomeSnapshotRepository @Inject constructor(
      * on the fit. Starts at the loaded fit's. Guarded by [mutationMutex].
      */
     private var requestedFitEpoch = 0
+
+    /** home_snapshot_metadata's epoch, stamped on every part; read at the load. Guarded by [mutationMutex]. */
+    private var metadataEpoch = 0L
 
     // Conflated: every request made before a run starts becomes that run.
     // Requests carry nothing; a run reads everything it needs itself.
@@ -157,9 +162,9 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
-    // All medication group, medication log, and profile writes that affect Home data
-    // must go through this gate, so the cached parts stop being current before the DB
-    // changes.
+    // All medication group, medication log, profile, and tracked-date writes that
+    // affect Home data must go through this gate, so the cached parts stop being
+    // current before the DB changes.
     //
     // The work inside the lock runs in NonCancellable: once the generation is bumped,
     // the mutation must finish and its run must be asked for, or a caller whose scope
@@ -204,9 +209,9 @@ class HomeSnapshotRepository @Inject constructor(
     }
 
     /**
-     * A change Home data reads that no gated write makes: the journal's first
-     * pinned date. It bumps the generation and asks for a run; the E2 keys
-     * don't move, so nothing holds.
+     * An empty gated mutation: it bumps the generation and asks for a run; the
+     * E2 keys don't move, so nothing holds. Nothing in production calls it now
+     * that tracked-date writes go through the gate themselves.
      */
     suspend fun invalidate() {
         runHomeDataMutation {}
@@ -249,10 +254,28 @@ class HomeSnapshotRepository @Inject constructor(
         runsFinished.first { finished -> finished > started }
     }
 
-    /** [cache] once the disk load is done, while it is current; null otherwise. */
-    suspend fun currentState(): HomeCacheState? {
-        val state = cacheState.filterNotNull().first()
-        return state.takeIf { state.generation == generationState.value }
+    /** [cache] once the disk load is done, while it is current (see [handout]); null otherwise. */
+    suspend fun currentState(): HomeCacheState? = handout(cacheState.filterNotNull().first(), generationState.value)
+
+    /**
+     * [state] when it is at [generation] and its Home data passes the load's
+     * date and zone rule now. A clock set back past its date, or another zone,
+     * leaves a state built for another day until the time-change run
+     * publishes, and that run can fail for good: such a state is not handed
+     * out as current, and a run is asked for instead. Readers then go to Room
+     * or wait for the run, as for a missing part. Checked when read, not on a
+     * timer: a state that ages past its ten days is withheld from the next read.
+     */
+    private fun handout(state: HomeCacheState?, generation: Long): HomeCacheState? {
+        if (state == null || state.generation != generation) return null
+        val zoneId = ZoneId.systemDefault()
+        val today = appTimeSource.now().atZone(zoneId).toLocalDate()
+        val failure = state.homeData?.let { homeData ->
+            zoneOrDateFailure(homeData.zoneId, homeData.anchorDateEpochDay, today, zoneId)
+        } ?: return state
+        diagnosticsLogger.info(TAG, "home_cache_withheld reason=$failure")
+        requestRebuildIfIdle()
+        return null
     }
 
     fun scheduleEntriesForHome(
@@ -285,26 +308,32 @@ class HomeSnapshotRepository @Inject constructor(
             val today = appTimeSource.now().atZone(zoneId).toLocalDate()
             val (durable, homeData, e2Inputs) = coroutineScope {
                 // Unreadable, it can't vouch for either file: both wait for a run.
+                // (epoch, generation)
                 val durable = async {
-                    readOrNull("home_snapshot_generation") { homeSnapshotGenerationStore.readGeneration() }
+                    readOrNull("home_snapshot_generation") {
+                        homeSnapshotGenerationStore.readEpoch() to homeSnapshotGenerationStore.readGeneration()
+                    }
                 }
                 val homeData = async {
                     val record = readOrNull("home_snapshot") { homeSnapshotStore.readSnapshot() }
-                    val generation = durable.await()
+                    val stamp = durable.await()
                     record
-                        ?.takeIf { generation != null && isValid("home_snapshot", it.validityFailure(generation, today, zoneId)) }
+                        ?.takeIf { stamp != null && isValid("home_snapshot", it.validityFailure(stamp.second, stamp.first, today, zoneId)) }
                         .also { part -> StartupTiming.mark(if (part == null) "home_snapshot_missing" else "home_snapshot_loaded") }
                 }
                 val e2Inputs = async {
                     val record = readOrNull("home_e2_inputs") { homeSnapshotStore.readE2Inputs() }
-                    val generation = durable.await()
+                    val stamp = durable.await()
                     record
-                        ?.takeIf { generation != null && isValid("home_e2_inputs", it.validityFailure(generation, today, zoneId)) }
+                        ?.takeIf { stamp != null && isValid("home_e2_inputs", it.validityFailure(stamp.second, stamp.first, today, zoneId)) }
                         .also { part -> StartupTiming.mark(if (part == null) "home_e2_inputs_missing" else "home_e2_inputs_loaded") }
                 }
                 Triple(durable.await(), homeData.await(), e2Inputs.await())
             }
-            durable?.let { generationState.value = it }
+            durable?.let { (epoch, generation) ->
+                metadataEpoch = epoch
+                generationState.value = generation
+            }
             requestedFitEpoch = e2Inputs?.fit?.epoch ?: 0
             cacheState.value = HomeCacheState(generationState.value, homeData, e2Inputs)
             diagnosticsLogger.info(
@@ -313,10 +342,11 @@ class HomeSnapshotRepository @Inject constructor(
                         "homeData=[${homeData?.diagnosticSummary() ?: "none"}] " +
                         "e2Inputs=[${e2Inputs?.diagnosticSummary() ?: "none"}]"
             )
-            // The only date and zone check: at startup. A part missing then,
-            // for its generation, schema or engine, or its zone or ten-day
-            // window, is rebuilt now; later date and zone changes reach the
-            // repository as the broadcasts' runs (see [cache]).
+            // A part missing then, for its generation, schema or engine, or
+            // its zone or ten-day window, is rebuilt now; later date and zone
+            // changes reach the repository as the broadcasts' runs, and the
+            // handout applies the same date and zone rule until they publish
+            // (see [cache]).
             if (homeData == null || e2Inputs == null) requestRebuild()
         }
     }
@@ -355,9 +385,13 @@ class HomeSnapshotRepository @Inject constructor(
     /** One run's work; false when a mutation committed meanwhile and it published nothing. */
     private suspend fun build(): Boolean {
         // Under the lock, so no mutation is half done.
-        val (generation, fitEpoch) = mutationMutex.withLock { generationState.value to requestedFitEpoch }
+        val (generation, fitEpoch, epoch) = mutationMutex.withLock {
+            Triple(generationState.value, requestedFitEpoch, metadataEpoch)
+        }
         val zoneId = ZoneId.systemDefault()
-        val now = LocalDateTime.ofInstant(appTimeSource.now(), zoneId)
+        val nowInstant = appTimeSource.now()
+        val nowEpochMillis = nowInstant.toEpochMilli()
+        val now = LocalDateTime.ofInstant(nowInstant, zoneId)
         diagnosticsLogger.info(TAG, "home_snapshot_run_start generation=$generation now=$now")
         // The persisted option, never settingsState's placeholder.
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
@@ -401,7 +435,9 @@ class HomeSnapshotRepository @Inject constructor(
             // Calibration inputs: every E2 lab, the estradiol doses that can
             // still shape a lab (see calibrationDoseWindowStartEpochMillis),
             // and the user's review metadata. None of the reads follows the
-            // clock, so neither does the fit's identity.
+            // clock. The fit's identity follows it only past a lab dated after
+            // the run, which buildPkCalibrationInput leaves out until then;
+            // Home's observation asks for the run that solves it in.
             val calibrationLabs = database.bloodTestDao().getPanels().flatMap { panel ->
                 panel.results
                     .filter { result ->
@@ -518,6 +554,7 @@ class HomeSnapshotRepository @Inject constructor(
             entries = inputs.calibrationEntries,
             weightKg = inputs.profile.weightKg,
             metadata = inputs.calibrationMetadata,
+            nowEpochMillis = nowEpochMillis,
         )
         val fitId = E2Derivation.fitId(calibrationInput)
         diagnosticsLogger.info(
@@ -527,7 +564,8 @@ class HomeSnapshotRepository @Inject constructor(
         )
         // The solve reads only what fitId digests, so the published fit stands
         // in for it: a stock edit, an antiandrogen dose, midnight or a 7/30
-        // switch never re-solves. Not a failed one, which the next run tries
+        // switch never re-solves, unless the clock passed a lab left out as
+        // dated after the last run. Not a failed one, which the next run tries
         // again, nor one older than a pending Try again; nor the solve of a
         // discarded run, which was never published. The labs and review
         // metadata published beside it then flag what it was solved from:
@@ -562,7 +600,9 @@ class HomeSnapshotRepository @Inject constructor(
         val homeData = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generation = generation,
-            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            epoch = epoch,
+            // The instant, not the wall clock: the widget worker compares it with its record's.
+            generatedAtEpochMillis = nowEpochMillis,
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
             activeGroups = inputs.activeGroups,
@@ -577,6 +617,7 @@ class HomeSnapshotRepository @Inject constructor(
         )
         val e2Inputs = E2InputsRecord(
             generation = generation,
+            epoch = epoch,
             anchorDateEpochDay = homeData.anchorDateEpochDay,
             zoneId = homeData.zoneId,
             option = option,
@@ -704,27 +745,29 @@ class HomeSnapshotRepository @Inject constructor(
 }
 
 /**
- * Why Home data can't stand in for Room at the durable [generation], [today]
- * and [zoneId]; null when it can. Its one validity rule: readers take Home
- * data only from [HomeSnapshotRepository.cache], which the load seeds with
- * it only when this passes, and each run's publish replaces.
+ * Why Home data can't stand in for Room at the durable [generation] and
+ * [epoch], [today] and [zoneId]; null when it can. Its one validity rule:
+ * readers take Home data only from [HomeSnapshotRepository.cache], which the
+ * load seeds with it only when this passes, and each run's publish replaces.
  */
-internal fun HomeSnapshotRecord.validityFailure(generation: Long, today: LocalDate, zoneId: ZoneId): String? =
-    if (schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
-        "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=$schemaVersion"
-    } else {
-        generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
+internal fun HomeSnapshotRecord.validityFailure(generation: Long, epoch: Long, today: LocalDate, zoneId: ZoneId): String? =
+    when {
+        schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION ->
+            "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=$schemaVersion"
+        // A metadata file reset as corrupt starts its generation again, under a new epoch.
+        this.epoch != epoch -> "epoch expected=$epoch actual=${this.epoch}"
+        else -> generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
     }
 
 /**
  * The E2 inputs' one validity rule: Home data's, apart from the schema, and
  * only from this engine, which solved the fit and keys every estimate.
  */
-internal fun E2InputsRecord.validityFailure(generation: Long, today: LocalDate, zoneId: ZoneId): String? =
-    if (engineVersion != PK_ENGINE_VERSION) {
-        "engine_version expected=$PK_ENGINE_VERSION actual=$engineVersion"
-    } else {
-        generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
+internal fun E2InputsRecord.validityFailure(generation: Long, epoch: Long, today: LocalDate, zoneId: ZoneId): String? =
+    when {
+        engineVersion != PK_ENGINE_VERSION -> "engine_version expected=$PK_ENGINE_VERSION actual=$engineVersion"
+        this.epoch != epoch -> "epoch expected=$epoch actual=${this.epoch}"
+        else -> generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
     }
 
 private fun generationZoneOrDateFailure(
@@ -735,10 +778,23 @@ private fun generationZoneOrDateFailure(
     today: LocalDate,
     zoneId: ZoneId,
 ): String? {
+    return if (recordGeneration != generation) {
+        "generation expected=$generation actual=$recordGeneration"
+    } else {
+        zoneOrDateFailure(recordZoneId, anchorDateEpochDay, today, zoneId)
+    }
+}
+
+/** The date and zone half of the rule: the load's, and the in-memory handout's. */
+private fun zoneOrDateFailure(
+    recordZoneId: String,
+    anchorDateEpochDay: Long,
+    today: LocalDate,
+    zoneId: ZoneId,
+): String? {
     val anchorDate = LocalDate.ofEpochDay(anchorDateEpochDay)
     val validUntil = anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS)
     return when {
-        recordGeneration != generation -> "generation expected=$generation actual=$recordGeneration"
         recordZoneId != zoneId.id -> "zone_id expected=${zoneId.id} actual=$recordZoneId"
         today.isBefore(anchorDate) || today.isAfter(validUntil) ->
             "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"

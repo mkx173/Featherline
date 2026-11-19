@@ -1,12 +1,18 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.mkx.hrttracker.followAndroidAppLanguageSetting
+import com.mkx.hrttracker.followAppLanguage
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -15,35 +21,65 @@ import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.appLanguageLocale
+import com.mkx.hrttracker.util.systemLocale
+import io.mockk.Runs
+import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.IOException
 import java.util.Locale
+import java.util.concurrent.Executors
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsRepositoryTest {
+    private companion object {
+        // Set once setUp has waited in vain for the start store.
+        @Volatile
+        var startStoreBroken = false
+    }
+
     @get:Rule
     val tmpFolder: TemporaryFolder = TemporaryFolder()
 
@@ -55,6 +91,7 @@ class SettingsRepositoryTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
         every { appLanguageLocale() } returns Locale.ENGLISH
@@ -65,6 +102,26 @@ class SettingsRepositoryTest {
         )
 
         settingsRepository = SettingsRepository(dataStore)
+        // It stores the language it starts in once it has read the last one: let that land
+        // first, so it can't overwrite what a test stores. If it never does, fail once and let
+        // every later test fail at once, not each after a long wait.
+        check(!startStoreBroken) { "The start store never landed in an earlier test; see the first failure." }
+        val landed = runBlocking {
+            withContext(Dispatchers.Default) {
+                withTimeoutOrNull(10_000) {
+                    while (dataStore.data.first()[stringPreferencesKey("app_language_tag")] != "en") delay(10)
+                }
+            }
+        }
+        if (landed == null) {
+            startStoreBroken = true
+            error("The repository didn't store the language it starts in within 10 s.")
+        }
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -400,12 +457,12 @@ class SettingsRepositoryTest {
                 settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
             ) { expanded: Boolean, states: Map<String, MedicineStockState> -> expanded to states }
 
+            // The first value that differs from the one before the write, whether or not the
+            // observer subscribed in time to see that one: counting emissions hung when it didn't.
+            val beforeCollapse = foldStateFlow.first()
             val collapseObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
             val collapseJob = launch {
-                foldStateFlow
-                    .drop(1)
-                    .take(1)
-                    .toList(collapseObserved)
+                collapseObserved += foldStateFlow.first { it != beforeCollapse }
             }
             settingsRepository.setHomeLowStockSectionFoldState(
                 expanded = false,
@@ -423,12 +480,10 @@ class SettingsRepositoryTest {
                 settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
             )
 
+            val beforeExpand = foldStateFlow.first()
             val expandObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
             val expandJob = launch {
-                foldStateFlow
-                    .drop(1)
-                    .take(1)
-                    .toList(expandObserved)
+                expandObserved += foldStateFlow.first { it != beforeExpand }
             }
             settingsRepository.setHomeLowStockSectionFoldState(expanded = true)
             expandJob.join()
@@ -459,8 +514,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -476,6 +529,465 @@ class SettingsRepositoryTest {
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
         )
     }
+
+    @Test
+    fun `restoreSettings applies the app language on the main thread`() = runTest(testDispatcher) {
+        // setApplicationLocales must run on the main thread; restore calls in from IO.
+        val main = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "test-main") }
+        Dispatchers.setMain(main.asCoroutineDispatcher())
+        mockkStatic(AppCompatDelegate::class)
+        var localeThread: String? = null
+        every { AppCompatDelegate.setApplicationLocales(any()) } answers {
+            localeThread = Thread.currentThread().name
+        }
+        try {
+            withContext(Dispatchers.IO) { restoreSettingsWithHazeBlurEnabled(enabled = true) }
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+            main.shutdown()
+        }
+
+        assertEquals("test-main", localeThread)
+    }
+
+    @Test
+    fun `setAppLanguageOption stores the tag`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            settingsRepository.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+
+            assertEquals("zh-Hant", awaitStoredAppLanguageTag("zh-Hant"))
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `refreshAppLanguageOption stores the language AppCompat has`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        // One chosen before the tag was stored (by an earlier build, or in Android's setting).
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns false
+            every { toLanguageTags() } returns "yue-Hant-HK"
+        }
+        try {
+            settingsRepository.refreshAppLanguageOption()
+
+            assertEquals("yue-Hant-HK", awaitStoredAppLanguageTag("yue-Hant-HK"))
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `a tag write that fails is logged and never reaches the uncaught exception handler`() {
+        val failing = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = flowOf(emptyPreferences())
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IOException("EBUSY")
+        }
+        val logged = CompletableDeferred<Throwable?>()
+        val logger: AppDiagnosticsLogger = mockk(relaxed = true) {
+            every { warning(any(), any(), any()) } answers { logged.complete(thirdArg()) }
+        }
+        val uncaught = CompletableDeferred<Throwable>()
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, error -> uncaught.complete(error) }
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            SettingsRepository(failing, logger).setAppLanguageOption(AppLanguageOption.ENGLISH)
+
+            runBlocking {
+                withTimeout(30_000) {
+                    select {
+                        logged.onAwait {}
+                        uncaught.onAwait {}
+                    }
+                }
+            }
+            assertFalse("uncaught: ${uncaught.takeIf { it.isCompleted }?.getCompleted()}", uncaught.isCompleted)
+            assertTrue(logged.getCompleted() is IOException)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previousHandler)
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `of quick language changes the last one chosen is stored whatever order the writes run in`() {
+        val writes = Channel<suspend (Preferences) -> Preferences>(Channel.UNLIMITED)
+        // Holds every write, so the test picks the order they run in.
+        val held = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = flowOf(emptyPreferences())
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+                writes.send(transform)
+                awaitCancellation()
+            }
+        }
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            val repository = SettingsRepository(held)
+            repository.setAppLanguageOption(AppLanguageOption.ENGLISH)
+            repository.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+            repository.setAppLanguageOption(AppLanguageOption.ENGLISH)
+
+            val key = stringPreferencesKey("app_language_tag")
+            val stored = runBlocking {
+                val held3 = List(3) { withTimeout(30_000) { writes.receive() } }
+                // The write that would store Traditional Chinese runs last.
+                val tags = held3.map { write -> write(emptyPreferences())[key] }
+                var preferences = emptyPreferences()
+                for ((write, _) in held3.zip(tags).sortedBy { (_, tag) -> tag == "zh-Hant" }) {
+                    preferences = write(preferences)
+                }
+                preferences[key]
+            }
+            assertEquals(AppLanguageOption.ENGLISH.languageTag, stored)
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    /** The stored tag once it is [expected], as the write is asynchronous. */
+    @Test
+    fun `each change in Android's per-app language setting reaches the app language`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns true
+        }
+        try {
+            // Android's setting changes the app language twice; each arrives as a configuration change.
+            every { appLanguageLocale() } returns Locale.forLanguageTag("zh-Hans-CN")
+            followAndroidAppLanguageSetting(settingsRepository)
+            assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, awaitAppLanguage(AppLanguageOption.SIMPLIFIED_CHINESE))
+
+            every { appLanguageLocale() } returns Locale.forLanguageTag("yue-Hant-HK")
+            followAndroidAppLanguageSetting(settingsRepository)
+            assertEquals(AppLanguageOption.CANTONESE, awaitAppLanguage(AppLanguageOption.CANTONESE))
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `System default in Android's per-app setting stores the language it resolves to`() = runTest(testDispatcher) {
+        // So the next start finds its language unchanged and reposts nothing.
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns true
+        }
+        try {
+            every { appLanguageLocale() } returns Locale.forLanguageTag("zh-Hant-TW")
+            followAndroidAppLanguageSetting(settingsRepository)
+
+            assertEquals("zh-Hant", awaitStoredAppLanguageTag("zh-Hant"))
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `choosing Follow system clears the app locales and the picker reads it back`() = runTest(testDispatcher) {
+        withAppLocales {
+            val repository = SettingsRepository(dataStore)
+            repository.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+            assertPicker(repository, AppLanguageOption.TRADITIONAL_CHINESE, followsSystem = false)
+
+            repository.setAppLanguageOption(null)
+
+            assertTrue(appLocales.isEmpty)
+            // The phone's language, mapped.
+            assertPicker(repository, AppLanguageOption.SIMPLIFIED_CHINESE, followsSystem = true)
+            awaitStoredAppLanguageTag("zh-Hans")
+            // As the next start's activity reads it.
+            val nextRun = SettingsRepository(dataStore)
+            nextRun.refreshAppLanguageOption()
+            assertPicker(nextRun, AppLanguageOption.SIMPLIFIED_CHINESE, followsSystem = true)
+        }
+    }
+
+    @Test
+    fun `the picker shows what Android's per-app setting sets, System default as Follow system`() =
+        runTest(testDispatcher) {
+            withAppLocales {
+                val repository = SettingsRepository(dataStore)
+                repository.setAppLanguageOption(AppLanguageOption.ENGLISH)
+
+                appLocales = LocaleListCompat.forLanguageTags("yue-Hant-HK")
+                followAndroidAppLanguageSetting(repository)
+                assertPicker(repository, AppLanguageOption.CANTONESE, followsSystem = false)
+
+                appLocales = LocaleListCompat.getEmptyLocaleList()
+                followAndroidAppLanguageSetting(repository)
+                assertPicker(repository, AppLanguageOption.SIMPLIFIED_CHINESE, followsSystem = true)
+            }
+        }
+
+    @Test
+    fun `a fresh install follows the system, and a language chosen before keeps it`() = runTest(testDispatcher) {
+        withAppLocales {
+            val fresh = SettingsRepository(dataStore)
+            fresh.refreshAppLanguageOption()
+            assertPicker(fresh, AppLanguageOption.SIMPLIFIED_CHINESE, followsSystem = true)
+
+            // Chosen by an earlier build: AppCompat (or the framework) holds it.
+            appLocales = LocaleListCompat.forLanguageTags("zh-Hant")
+            val upgraded = SettingsRepository(dataStore)
+            upgraded.refreshAppLanguageOption()
+            assertPicker(upgraded, AppLanguageOption.TRADITIONAL_CHINESE, followsSystem = false)
+        }
+    }
+
+    @Test
+    fun `switching between Follow system and a language reposts only when the language shown changes`() =
+        runTest(testDispatcher) {
+            withAppLocales {
+                // The last run showed the language this one starts in.
+                dataStore.edit { it[stringPreferencesKey("app_language_tag")] = "zh-Hans" }
+                val repository = SettingsRepository(dataStore)
+                val reposts = repostsIn(repository) {
+                    repository.refreshAppLanguageOption() // Follow system: zh-Hans.
+                    repository.setAppLanguageOption(AppLanguageOption.SIMPLIFIED_CHINESE)
+                    repository.setAppLanguageOption(null)
+                    repository.setAppLanguageOption(AppLanguageOption.ENGLISH) // One.
+                    repository.setAppLanguageOption(null) // Two.
+                }
+
+                assertEquals(2, reposts)
+            }
+        }
+
+    @Test
+    fun `a start with nothing changed since the last run reposts nothing`() = runTest(testDispatcher) {
+        withAppLocales {
+            // English chosen, then Follow system in the app.
+            val first = SettingsRepository(dataStore)
+            repostsIn(first) {
+                first.setAppLanguageOption(AppLanguageOption.ENGLISH)
+                // Landed before the next change, as below: else the start store's zh-Hans can be
+                // on disk while a write computed under English is still on its way, and the next
+                // repository's first read can come between them.
+                awaitStoredAppLanguageTag("en")
+                first.setAppLanguageOption(null)
+            }
+            awaitStoredAppLanguageTag("zh-Hans")
+            val second = SettingsRepository(dataStore)
+            assertEquals(0, repostsIn(second) { second.refreshAppLanguageOption() })
+
+            // English chosen, then System default in Android's setting.
+            second.setAppLanguageOption(AppLanguageOption.ENGLISH)
+            // Landed before the next change: else the store below could see the zh-Hans from
+            // before while this write is still on its way.
+            awaitStoredAppLanguageTag("en")
+            appLocales = LocaleListCompat.getEmptyLocaleList()
+            followAndroidAppLanguageSetting(second)
+            awaitStoredAppLanguageTag("zh-Hans")
+            val third = SettingsRepository(dataStore)
+            assertEquals(0, repostsIn(third) { third.refreshAppLanguageOption() })
+
+            // A language chosen.
+            third.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+            awaitStoredAppLanguageTag("zh-Hant")
+            val fourth = SettingsRepository(dataStore)
+            assertEquals(0, repostsIn(fourth) { fourth.refreshAppLanguageOption() })
+        }
+    }
+
+    @Test
+    fun `following the system, a phone language changed while the app was closed reposts at the next start`() =
+        runTest(testDispatcher) {
+            withAppLocales {
+                val first = SettingsRepository(dataStore)
+                repostsIn(first) { first.refreshAppLanguageOption() }
+                awaitStoredAppLanguageTag("zh-Hans")
+
+                phone = Locale.forLanguageTag("en-US")
+                val second = SettingsRepository(dataStore)
+
+                assertEquals(1, repostsIn(second) { second.refreshAppLanguageOption() })
+            }
+        }
+
+    @Test
+    fun `restoring a backup that follows the system follows it`() = runTest(testDispatcher) {
+        withAppLocales {
+            appLocales = LocaleListCompat.forLanguageTags("en")
+            val repository = SettingsRepository(dataStore)
+            repository.restoreSettings(
+                darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+                adaptiveColorEnabled = true,
+                pureBlackEnabled = false,
+                remindersEnabled = true,
+                showArchivedGroupRecords = true,
+                hideReferenceRanges = false,
+                onboardingCompleted = true,
+                appLanguageOption = null,
+                calibrationDefaultUnits = emptySet(),
+                homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                    BloodAnalyteKey.E2,
+                    BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+                ),
+                homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+            )
+
+            assertTrue(appLocales.isEmpty)
+            assertPicker(repository, AppLanguageOption.SIMPLIFIED_CHINESE, followsSystem = true)
+            awaitStoredAppLanguageTag("zh-Hans")
+        }
+    }
+
+    @Test
+    fun `lastRunAppLanguageTag is the tag stored before this run, not one this run stores`() = runTest(testDispatcher) {
+        dataStore.edit { it[stringPreferencesKey("app_language_tag")] = "zh-Hans" }
+        val nextRun = SettingsRepository(dataStore)
+
+        assertEquals("zh-Hans", nextRun.lastRunAppLanguageTag())
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            nextRun.setAppLanguageOption(AppLanguageOption.CANTONESE)
+            awaitStoredAppLanguageTag("yue-Hant-HK")
+
+            assertEquals("zh-Hans", nextRun.lastRunAppLanguageTag())
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `a language set before the first read is stored after it, so it is not taken for the last run's`() =
+        runTest(testDispatcher) {
+            dataStore.edit { it[stringPreferencesKey("app_language_tag")] = "zh-Hans" }
+            // The first read, slow under load, comes after the change.
+            val firstRead = CompletableDeferred<Unit>()
+            val slowFirstRead = object : DataStore<Preferences> {
+                override val data: Flow<Preferences> = flow {
+                    firstRead.await()
+                    emitAll(dataStore.data)
+                }
+
+                override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) =
+                    dataStore.updateData(transform)
+            }
+            mockkStatic(AppCompatDelegate::class)
+            every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+            val defaultLocale = Locale.getDefault()
+            try {
+                val run = SettingsRepository(slowFirstRead)
+                run.setAppLanguageOption(AppLanguageOption.CANTONESE)
+                // Give an unwaited write the time to land first.
+                val landedEarly = withContext(Dispatchers.Default) {
+                    withTimeoutOrNull(2_000) {
+                        while (dataStore.data.first()[stringPreferencesKey("app_language_tag")] != "yue-Hant-HK") delay(10)
+                    }
+                }
+                firstRead.complete(Unit)
+
+                assertNull("the write landed before the first read", landedEarly)
+
+                assertEquals("zh-Hans", run.lastRunAppLanguageTag())
+                assertEquals("yue-Hant-HK", awaitStoredAppLanguageTag("yue-Hant-HK"))
+            } finally {
+                Locale.setDefault(defaultLocale)
+                unmockkStatic(AppCompatDelegate::class)
+            }
+        }
+
+    private suspend fun awaitAppLanguage(
+        expected: AppLanguageOption,
+        repository: SettingsRepository = settingsRepository,
+    ): AppLanguageOption =
+        withContext(Dispatchers.Default) {
+            withTimeout(30_000) {
+                repository.settingsState.first { it.appLanguageOption == expected }.appLanguageOption
+            }
+        }
+
+    /**
+     * What the picker shows. From getCurrentSettings, which carries the language as it is now:
+     * settingsState relays it later, from IO, so it could still show the one from before.
+     */
+    private suspend fun assertPicker(
+        repository: SettingsRepository,
+        language: AppLanguageOption,
+        followsSystem: Boolean,
+    ) {
+        val settings = repository.getCurrentSettings()
+        assertEquals(language to followsSystem, settings.appLanguageOption to settings.appLanguageFollowsSystem)
+    }
+
+    // AppCompat's app locales, which setApplicationLocales sets and the framework or AppCompat's
+    // storage would hand back; and the phone's language.
+    private var appLocales: LocaleListCompat = LocaleListCompat.getEmptyLocaleList()
+    private var phone: Locale = Locale.forLanguageTag("zh-Hans-CN")
+
+    private inline fun withAppLocales(block: () -> Unit) {
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } answers { appLocales = firstArg() }
+        every { AppCompatDelegate.getApplicationLocales() } answers { appLocales }
+        every { appLanguageLocale() } answers { callOriginal() }
+        every { systemLocale() } answers { phone }
+        val defaultLocale = Locale.getDefault()
+        try {
+            block()
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    /**
+     * One run of the app: [followAppLanguage] over [repository], as the application starts it,
+     * while [actions] run; the reminders it reposted.
+     */
+    private suspend fun TestScope.repostsIn(
+        repository: SettingsRepository,
+        actions: suspend () -> Unit,
+    ): Int {
+        var reposts = 0
+        val scheduler = mockk<MedicationReminderScheduler> {
+            coEvery { refreshDoseReminderNotifications() } answers { reposts++ }
+        }
+        repository.lastRunAppLanguageTag()
+        // Unconfined: it collects each change as it is made, on the thread making it. Undispatched:
+        // it takes the start language before the actions run, and can't be cancelled before then.
+        val run = backgroundScope.launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {
+            followAppLanguage(
+                languages = repository.shownAppLanguage,
+                lastLanguageTag = repository::lastRunAppLanguageTag,
+                reminderNotificationManager = mockk(relaxed = true),
+                medicationReminderScheduler = { scheduler },
+                diagnosticsLogger = mockk(relaxed = true),
+            )
+        }
+        // Off the test's own unconfined loop, which would queue the collector until it yields.
+        withContext(Dispatchers.Default) { actions() }
+        run.cancel()
+        return reposts
+    }
+
+    private suspend fun awaitStoredAppLanguageTag(expected: String): String? =
+        withContext(Dispatchers.Default) {
+            withTimeout(30_000) {
+                var tag: String? = null
+                while (tag != expected) {
+                    tag = dataStore.data.first()[stringPreferencesKey("app_language_tag")]
+                    if (tag != expected) delay(10)
+                }
+                tag
+            }
+        }
 
     @Test
     fun `homeCardLayoutFlow defaults to HomeCardLayout when unset`() =
@@ -525,6 +1037,39 @@ class SettingsRepositoryTest {
             assertEquals(emptySet<HomeCardType>(), layout.hidden)
         }
 
+    // W8: a backup from before weight sync has no flag, and keeps the device's setting.
+    @Test
+    fun `restoreSettings keeps weight sync when the backup has no flag, and takes one it has`() =
+        runTest(testDispatcher) {
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+
+            restoreSettingsWithWeightSync(enabled = null)
+            assertTrue(settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled)
+
+            restoreSettingsWithWeightSync(enabled = false)
+            assertFalse(settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled)
+        }
+
+    private suspend fun restoreSettingsWithWeightSync(enabled: Boolean?) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+            healthConnectWeightSyncEnabled = enabled,
+        )
+    }
+
     private suspend fun restoreSettingsWithStockNudgeEnabled(
         enabled: Boolean,
         userEnabled: Boolean = false,
@@ -536,8 +1081,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -560,8 +1103,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -581,8 +1122,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),

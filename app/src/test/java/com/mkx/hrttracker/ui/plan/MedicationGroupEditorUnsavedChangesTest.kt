@@ -103,6 +103,32 @@ class MedicationGroupEditorUnsavedChangesTest {
     }
 
     @Test
+    fun editedDraft_comparesTheMomentTheStartFallsOn() {
+        // A loaded start, and a pick landing back on it.
+        val loaded = MedicationGroupEditorUiState(
+            sinceDate = LocalDate.of(2026, 4, 25),
+            scheduleStart = ScheduleStart.Loaded(LocalDateTime.of(2026, 4, 25, 12, 0), LocalDate.of(2026, 4, 25)),
+        )
+        assertEquals(
+            loaded.toEditedDraft(),
+            loaded.copy(scheduleStart = ScheduleStart.At(LocalTime.of(12, 0))).toEditedDraft(),
+        )
+        assertEquals(
+            loaded.copy(scheduleStart = ScheduleStart.WholeDay).toEditedDraft(),
+            loaded.copy(scheduleStart = ScheduleStart.At(LocalTime.MIDNIGHT)).toEditedDraft(),
+        )
+        assertNotEquals(
+            loaded.toEditedDraft(),
+            loaded.copy(scheduleStart = ScheduleStart.At(LocalTime.of(13, 0))).toEditedDraft(),
+        )
+        // "Now" moves on with the clock, so it is never the moment it starts at first.
+        assertNotEquals(
+            loaded.toEditedDraft(),
+            loaded.copy(scheduleStart = ScheduleStart.Now).toEditedDraft(),
+        )
+    }
+
+    @Test
     fun editedDraft_keepsACopiedPlansWeekdaysAsTheClockMovesOn() {
         // A Saturday-only plan copied on Saturday keeps Saturday past midnight; Sunday picked
         // instead is a different plan, though Sunday is then the start date's weekday.

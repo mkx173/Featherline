@@ -5,7 +5,13 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.os.Build
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.Window
 import android.view.WindowManager
+import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
+import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,8 +41,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.view.WindowInsetsCompat
@@ -51,8 +59,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -66,9 +76,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
+import androidx.navigationevent.NavigationEventDispatcherOwner
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.findViewTreeNavigationEventDispatcherOwner
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazeInput
@@ -396,6 +410,94 @@ internal val LocalModalHostIsCurrentDestination =
 // was with a route left behind, and hidden until its page is back if it doesn't close.
 internal val LocalModalHostShown = compositionLocalOf { true }
 
+// Whether the app lock screen is up over the page hosting a modal or menu, which is hidden, not
+// closed, until the unlock.
+internal val LocalAppLocked = compositionLocalOf { false }
+
+// Hides the modal window whose content it is applied to while the app lock is up, as Dialog.hide()
+// does: still composed, the modal keeps what it holds, such as a half-typed draft, and shows again
+// on unlock. Its own back does nothing meanwhile, would it get any. One first composed under the
+// lock isn't shown at all until the unlock, see rememberModalWindowAllowed. Composed, to reach the
+// window the content lands in rather than the caller's.
+private fun Modifier.hiddenUnderAppLock(): Modifier = composed {
+    val locked = LocalAppLocked.current
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    val lockHidden = remember(window) { window?.let(::LockHiddenWindow) }
+    SideEffect {
+        val decorView = window?.decorView ?: return@SideEffect
+        decorView.visibility = if (locked) View.GONE else View.VISIBLE
+        lockHidden?.update(locked)
+        decorView.findViewTreeNavigationEventDispatcherOwner()?.navigationEventDispatcher?.isEnabled =
+            !locked
+    }
+    InsetsDispatchedAgainWhenShown()
+    Modifier
+}
+
+// The window itself is hidden too, not only its view: the window manager may keep a GONE window's
+// surface and show it again, with its last frame and touch region, over the lock screen, as once
+// a system panel over the locked app closes. Meanwhile it's transparent, takes no touch or focus
+// and dims nothing; the unlock puts back its own alpha and those flags.
+private class LockHiddenWindow(private val window: Window) {
+    private var hidden = false
+    private var shownAlpha = 1f
+    private var shownFlags = 0
+
+    fun update(locked: Boolean) {
+        if (locked == hidden) return
+        hidden = locked
+        val attributes = window.attributes
+        if (locked) {
+            shownAlpha = attributes.alpha
+            shownFlags = attributes.flags
+        }
+        attributes.alpha = if (locked) 0f else shownAlpha
+        window.attributes = attributes
+        val flags = if (locked) FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE else shownFlags
+        window.setFlags(flags, LockHiddenFlags)
+    }
+}
+
+// Dispatches the insets of the window it's composed in again whenever that window shows again, as
+// when the app comes back or a modal comes back from under the app lock. Before API 30 the IME inset
+// is worked out from the window's visible insets, which ViewRootImpl updates only after dispatching
+// the insets of a window shown again: that dispatch still has the keyboard closed while the window
+// was hidden, and the compat insets animation it starts outlasts the IME one of the next dispatch,
+// so Compose keeps the keyboard in the layout until a dispatch after both. Once right away, and once
+// that animation is over.
+@Composable
+internal fun InsetsDispatchedAgainWhenShown() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return
+    val view = LocalView.current
+    var shown by remember { mutableIntStateOf(0) }
+    DisposableEffect(view) {
+        // Pre-draw comes on every traversal, the one showing the window included.
+        var visible = view.windowVisibility == View.VISIBLE
+        val listener = ViewTreeObserver.OnPreDrawListener {
+            val nowVisible = view.windowVisibility == View.VISIBLE
+            if (nowVisible && !visible) shown++
+            visible = nowVisible
+            true
+        }
+        // From the observer it was added to: a dismissed dialog's view is detached first, and its
+        // viewTreeObserver is a fresh floating one by now.
+        val observer = view.viewTreeObserver
+        observer.addOnPreDrawListener(listener)
+        onDispose { if (observer.isAlive) observer.removeOnPreDrawListener(listener) }
+    }
+    LaunchedEffect(shown) {
+        if (shown == 0) return@LaunchedEffect
+        view.requestApplyInsets()
+        // ponytail: 250 ms is androidx.core's longest compat insets animation (Impl21); follow it
+        // if that changes. In frame time, so a slow frame can't land the dispatch before it ends.
+        val shownAt = withFrameMillis { it }
+        while (withFrameMillis { it } < shownAt + 250) { }
+        view.requestApplyInsets()
+    }
+}
+
+private const val LockHiddenFlags = FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE or FLAG_DIM_BEHIND
+
 /** Whether the page sits beside side navigation, the upright pill or the classic rail. */
 val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }
 
@@ -414,14 +516,19 @@ val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }
 //    lifecycle event the hold could observe.
 //  - still current: settling in (tab return, config change, paused
 //    activity) — show when the host resumes, as before.
+// Held back too while first composed under the app lock: a window hides only
+// once its content composes, after it has drawn a frame or more over the lock
+// screen, so it isn't shown until the unlock. Rather than lose a draft, one
+// shown before the lock hides under it (hiddenUnderAppLock).
 // Once shown, a modal stays shown through later lifecycle dips (e.g. the
 // activity pausing behind a system dialog).
 @Composable
 internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val isHostCurrentDestination = LocalModalHostIsCurrentDestination.current
+    val locked = LocalAppLocked.current
     var allowed by remember {
-        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        mutableStateOf(!locked && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
     val hostShown = LocalModalHostShown.current
@@ -441,16 +548,24 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
         // One drop per held window, whichever of the two checks fires first.
         val dropped = remember { mutableStateOf(false) }
         val leaving = isHostCurrentDestination?.invoke() == false
-        LaunchedEffect(leaving) {
+        // Shown by the first composition that sees the host resumed with the app unlocked, not by
+        // the effect: back from a stop that relocked the app, ON_START and ON_RESUME come in one
+        // turn, so the resume lands before any composition has seen the lock.
+        var resumed by remember { mutableStateOf(false) }
+        LaunchedEffect(leaving, locked) {
+            resumed = false
             if (leaving) {
                 if (!dropped.value) {
                     dropped.value = true
                     currentOnDismissRequest()
                 }
-            } else {
+            } else if (!locked) {
                 lifecycle.withResumed { }
-                allowed = true
+                resumed = true
             }
+        }
+        if (resumed && !locked && !leaving) {
+            SideEffect { allowed = true }
         }
         DisposableEffect(Unit) {
             onDispose {
@@ -515,25 +630,36 @@ fun HazeModalBottomSheet(
         ViewCompat.getRootWindowInsets(hostView)
             ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
     }
-    MaterialModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        modifier = modifier,
-        sheetState = sheetState,
-        containerColor = hazeBottomSheetContainerColor(),
-        // Explicit: contentColorFor(transparent haze container) falls back to
-        // LocalContentColor, which is black where the sheet is composed outside
-        // a Surface (onboarding).
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        dragHandle = null,
-        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
+    // The sheet's back handlers go on the dispatcher they inherit, by default their own window's.
+    // A top-level page provides one of its own (TopLevelPager), on the activity's window, which
+    // gets no Back while the sheet's window has focus: once that window is up, they get its own.
+    var windowBackOwner by remember { mutableStateOf<NavigationEventDispatcherOwner?>(null) }
+    CompositionLocalProvider(
+        *listOfNotNull(windowBackOwner?.let { LocalNavigationEventDispatcherOwner provides it })
+            .toTypedArray(),
     ) {
-        HazeBottomSheetSurface(
-            sheetState = sheetState,
+        MaterialModalBottomSheet(
             onDismissRequest = onDismissRequest,
-            statusBarTop = statusBarTop,
-            dragHandle = dragHandle,
-            content = content,
-        )
+            modifier = modifier.hiddenUnderAppLock(),
+            sheetState = sheetState,
+            containerColor = hazeBottomSheetContainerColor(),
+            // Explicit: contentColorFor(transparent haze container) falls back to
+            // LocalContentColor, which is black where the sheet is composed outside
+            // a Surface (onboarding).
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            dragHandle = null,
+            contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
+        ) {
+            val sheetWindowBackOwner = LocalView.current.findViewTreeNavigationEventDispatcherOwner()
+            SideEffect { windowBackOwner = sheetWindowBackOwner }
+            HazeBottomSheetSurface(
+                sheetState = sheetState,
+                onDismissRequest = onDismissRequest,
+                statusBarTop = statusBarTop,
+                dragHandle = dragHandle,
+                content = content,
+            )
+        }
     }
 }
 
@@ -632,7 +758,7 @@ fun HazeAlertDialog(
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         dismissButton = dismissButton,
         icon = icon,
         title = title,
@@ -661,7 +787,7 @@ fun HazeBasicAlertDialog(
     NavigationLockEffect(active = true, busy = false)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         properties = properties,
         content = content,
     )
@@ -707,7 +833,7 @@ fun HazeDatePickerDialog(
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         dismissButton = dismissButton,
         shape = shape,
         tonalElevation = tonalElevation,
@@ -738,7 +864,7 @@ fun HazeTimePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
         title = title,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         properties = properties,
         modeToggleButton = modeToggleButton,
         dismissButton = dismissButton,

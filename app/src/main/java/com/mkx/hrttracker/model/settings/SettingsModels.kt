@@ -30,12 +30,16 @@ enum class AppLanguageOption(val languageTag: String) {
     ENGLISH(languageTag = "en"),
     SIMPLIFIED_CHINESE(languageTag = "zh-Hans"),
     TRADITIONAL_CHINESE(languageTag = "zh-Hant"),
-    CANTONESE(languageTag = "yue-Hant-HK");
+    CANTONESE(languageTag = "yue-Hant-HK"),
+
+    // Offered as a contributor keeps it; not one of the four maintained (AGENTS.md).
+    CZECH(languageTag = "cs");
 
     companion object {
         fun fromLocale(locale: Locale): AppLanguageOption {
             return when {
                 locale.language == "yue" -> CANTONESE
+                locale.language == "cs" -> CZECH
                 locale.language != "zh" -> ENGLISH
                 locale.script == "Hans" -> SIMPLIFIED_CHINESE
                 locale.script == "Hant" ||
@@ -96,12 +100,16 @@ data class SettingsState(
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
     val classicNavigationBarEnabled: Boolean = false,
+    // The language shown; with appLanguageFollowsSystem, the phone's mapped to a supported one.
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    // No language chosen in the app or in Android's per-app setting (its app locales are empty).
+    val appLanguageFollowsSystem: Boolean = false,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val remindersEnabled: Boolean = true,
+    val reminderRepeats: ReminderRepeats = ReminderRepeats(),
     // Intent flag: the user wants weight synced with Health Connect. Sync also
     // needs Health Connect access (HealthConnectCapabilityReconciler).
     val healthConnectWeightSyncEnabled: Boolean = false,
@@ -116,8 +124,54 @@ data class SettingsState(
     val groupNameCounter: Int = 0,
 )
 
+/** The app-lock and screen-privacy settings as last read from disk, for consumers that fail closed. */
+sealed interface SecuritySettingsState {
+    data object Loading : SecuritySettingsState
+
+    /** The last read failed; a retry is pending. */
+    data object Error : SecuritySettingsState
+
+    data class Loaded(
+        val screenLockProtectionEnabled: Boolean,
+        val appLockGracePeriodOption: AppLockGracePeriodOption,
+        val hideScreenContentEnabled: Boolean,
+    ) : SecuritySettingsState
+}
+
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
     return calibrationDefaultUnits[analyteKey]
         ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
         ?: BloodTestCatalog.canonicalUnitFor(analyteKey)
+}
+
+/**
+ * How often a dose reminder rings while its dose is unlogged: at the dose time, then [count] more
+ * times, [intervalMinutes] apart. One setting for every plan, so plans that share a dose time
+ * share their alert times too.
+ */
+data class ReminderRepeats(
+    val count: Int = DEFAULT_COUNT,
+    val intervalMinutes: Int = DEFAULT_INTERVAL_MINUTES,
+) {
+    /** From the dose time to its last alert. */
+    val spanMinutes: Long get() = count.toLong() * intervalMinutes
+
+    fun isValid(): Boolean = count in COUNTS && intervalMinutes in INTERVALS_MINUTES
+
+    /**
+     * An interval under 15 minutes as 15, the shortest the wheel offers: earlier builds offered
+     * 5 and 10. The count stays. Read from the store and from a backup.
+     */
+    fun withShortIntervalRaised(): ReminderRepeats =
+        if (intervalMinutes < INTERVALS_MINUTES.first()) copy(intervalMinutes = INTERVALS_MINUTES.first()) else this
+
+    companion object {
+        const val DEFAULT_COUNT = 3
+        const val DEFAULT_INTERVAL_MINUTES = 15
+
+        /** 0 is Off: the dose rings once. */
+        val COUNTS: List<Int> = (0..4).toList()
+        // From 15: in Doze, Android lets an app's alarms go off about once per 15 minutes.
+        val INTERVALS_MINUTES: List<Int> = (15..60 step 5).toList()
+    }
 }

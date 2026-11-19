@@ -4,9 +4,9 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.normalizeMedicationCount
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
-import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

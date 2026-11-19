@@ -11,7 +11,9 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.squareup.moshi.Moshi
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.round
@@ -255,7 +257,7 @@ class ExternalImportParser @Inject constructor() {
         }
 
         val timeH = number(fields["timeH"])
-        if (timeH == null || !timeH.isFinite()) {
+        if (timeH == null || !timeH.isImportableTimeH()) {
             warnings.addMalformed(
                 externalId = externalId,
                 rowIndex = row.rowIndex,
@@ -883,7 +885,7 @@ class ExternalImportParser @Inject constructor() {
         val timeH = number(fields["timeH"])
         val value = number(fields["concValue"]) ?: number(fields["value"])
         val unit = unitFrom(text(fields["unit"]) ?: text(fields["units"]))
-        if (timeH == null || !timeH.isFinite() || value == null || !value.isFinite() || unit == null) {
+        if (timeH == null || !timeH.isImportableTimeH() || value == null || !value.isFinite() || unit == null) {
             warnings.addMalformed(
                 externalId = externalId,
                 rowIndex = row.rowIndex,
@@ -1173,6 +1175,11 @@ class ExternalImportParser @Inject constructor() {
     private fun epochMillisFromTimeH(value: Double): Long =
         round(value * 3_600_000.0).toLong()
 
+    // A time in seconds or milliseconds read as hours lands in the year 200,000 or later; the
+    // app keeps dates in years 0001 to 9999.
+    private fun Double.isImportableTimeH(): Boolean =
+        isFinite() && this >= IMPORTABLE_TIME_H_MIN && this <= IMPORTABLE_TIME_H_MAX
+
     private fun MutableList<ExternalImportWarning>.addMalformed(
         externalId: String?,
         rowIndex: Int?,
@@ -1346,3 +1353,8 @@ class ExternalImportParser @Inject constructor() {
         private val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9]")
     }
 }
+
+private val IMPORTABLE_TIME_H_MIN =
+    LocalDate.of(1, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) / 3_600.0
+private val IMPORTABLE_TIME_H_MAX =
+    LocalDate.of(9999, 12, 31).atStartOfDay().toEpochSecond(ZoneOffset.UTC) / 3_600.0

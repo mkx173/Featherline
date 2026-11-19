@@ -33,28 +33,40 @@ class LocalizationTest {
     @Test
     fun withAppLanguage_belowApi33_appliesChosenAppLanguageOverStaleSystemLocale() {
         // Simulate the stale application context: its configuration stays on the system
-        // locale (US) even though the user has chosen German as the app language.
+        // locale (US) even though the user has chosen Simplified Chinese as the app language.
         val systemLocaleContext = appContext.createConfigurationContext(
             Configuration(appContext.resources.configuration).apply { setLocale(Locale.US) },
         )
-        AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(Locale.GERMANY))
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(SIMPLIFIED_CHINESE))
 
         val localized = systemLocaleContext.withAppLanguage()
 
         // The locale must come from AppCompatDelegate, not the stale context configuration,
         // so numbers and strings resolve in the chosen app language below API 33.
-        assertEquals(Locale.GERMANY, localized.currentAppLocale())
+        assertEquals(SIMPLIFIED_CHINESE, localized.currentAppLocale())
     }
 
     @Test
     fun withAppLanguage_returnsSameContextWhenConfigurationAlreadyMatchesAppLanguage() {
         // When the context configuration already carries the app language there is nothing
         // to override, so the same context is returned rather than a needless wrapper.
-        AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(Locale.GERMANY))
-        val germanContext = appContext.createConfigurationContext(
-            Configuration(appContext.resources.configuration).apply { setLocale(Locale.GERMANY) },
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(SIMPLIFIED_CHINESE))
+        val chineseContext = appContext.createConfigurationContext(
+            Configuration(appContext.resources.configuration).apply { setLocale(SIMPLIFIED_CHINESE) },
         )
 
-        assertSame(germanContext, germanContext.withAppLanguage())
+        assertSame(chineseContext, chineseContext.withAppLanguage())
+    }
+
+    // As the screens show it: a language the app can't show (only from an older state) is English.
+    @Test
+    fun withAppLanguage_mapsAChosenLanguageTheAppCantShowToEnglish() {
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(Locale.GERMANY))
+
+        assertEquals(Locale.ENGLISH, appContext.withAppLanguage().currentAppLocale())
+    }
+
+    private companion object {
+        val SIMPLIFIED_CHINESE: Locale = Locale.forLanguageTag("zh-Hans")
     }
 }

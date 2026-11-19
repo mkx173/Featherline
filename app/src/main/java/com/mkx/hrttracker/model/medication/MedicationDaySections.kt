@@ -3,6 +3,7 @@ package com.mkx.hrttracker.model.medication
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.medicationDay
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -50,6 +51,8 @@ fun buildMedicationDaySections(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
     comingUpSource: MedicationDaySectionSource = source,
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant = Instant.now(),
 ): MedicationDaySections {
     // Built once per source: the partitions keep every plan these maps hold.
     val groupsByUuid = source.groupsByUuid()
@@ -62,6 +65,7 @@ fun buildMedicationDaySections(
         comingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.Midnight, comingUpGroupsByUuid),
         groupsByUuid = groupsByUuid,
         comingUpGroupsByUuid = comingUpGroupsByUuid,
+        clockNow = clockNow,
     )
     val nightOwlSource = source.partitionedTo(MedicationDayBoundary.FourAm, groupsByUuid)
     val nightOwlComingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.FourAm, comingUpGroupsByUuid)
@@ -77,6 +81,7 @@ fun buildMedicationDaySections(
         comingUpSource = nightOwlComingUpSource,
         groupsByUuid = groupsByUuid,
         comingUpGroupsByUuid = comingUpGroupsByUuid,
+        clockNow = clockNow,
     )
     val today = now.toLocalDate()
     // The two Coming up windows (18:00-24:00 and 00:00-04:00) never overlap.
@@ -103,15 +108,17 @@ private fun buildSingleEndingDaySections(
     comingUpSource: MedicationDaySectionSource,
     groupsByUuid: Map<UUID, MedicationGroup>,
     comingUpGroupsByUuid: Map<UUID, MedicationGroup>,
+    clockNow: Instant,
 ): MedicationDaySections {
     val today = medicationDay(now, boundary)
-    val todaySchedule = source.scheduleFor(date = today, now = now, zoneId = zoneId, groupsByUuid = groupsByUuid)
+    val todaySchedule = source.scheduleFor(date = today, now = now, zoneId = zoneId, groupsByUuid = groupsByUuid, clockNow = clockNow)
     val lastNight = if (boundary.isLastNightVisible(now)) {
         source.scheduleFor(
             date = boundary.lastNightMedicationDay(now),
             now = now,
             zoneId = zoneId,
             groupsByUuid = groupsByUuid,
+            clockNow = clockNow,
         ).filteredToLastNight(boundary = boundary, zoneId = zoneId)
     } else {
         null
@@ -122,6 +129,7 @@ private fun buildSingleEndingDaySections(
             now = now,
             zoneId = zoneId,
             groupsByUuid = comingUpGroupsByUuid,
+            clockNow = clockNow,
         ).filteredTo(range = boundary.comingUpTimeRange, zoneId = zoneId)
     } else {
         null
@@ -174,6 +182,7 @@ private fun MedicationDaySectionSource.scheduleFor(
     now: LocalDateTime,
     zoneId: ZoneId,
     groupsByUuid: Map<UUID, MedicationGroup>,
+    clockNow: Instant,
 ): PlanDaySchedule = buildPlanDaySchedule(
     date = date,
     groups = groups,
@@ -183,6 +192,7 @@ private fun MedicationDaySectionSource.scheduleFor(
     includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
     unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     groupsByUuid = groupsByUuid,
+    clockNow = clockNow,
 )
 
 private fun PlanDaySchedule.filteredToLastNight(

@@ -176,6 +176,8 @@ enum class PkCalibrationLabIgnoreReason {
     BELOW_INFORMATIVE_SIGNAL,
     /** The forward model could not be evaluated at the collection time. */
     NUMERIC_FAILURE,
+    /** Collected after the clock read the input was built at: not used until a fit after it. */
+    FUTURE,
 }
 
 data class PkRouteCalibrationResult(

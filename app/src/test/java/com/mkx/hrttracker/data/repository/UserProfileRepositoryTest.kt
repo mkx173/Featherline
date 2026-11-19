@@ -65,8 +65,22 @@ class UserProfileRepositoryTest {
         assertEquals("KILOGRAMS", captured.captured.weightOriginalUnit)
         assertEquals(1_700_000_000_000L, captured.captured.updatedAtEpochMillis)
         assertEquals(UserProfileEntity.SINGLETON_ID, captured.captured.id)
-        // A typed weight has no Health Connect measured time.
-        assertNull(captured.captured.weightMeasuredAtEpochMillis)
+        // A typed weight is dated when it's saved.
+        assertEquals(1_700_000_000_000L, captured.captured.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
+    fun setWeight_fromTheSheetOrOnboarding_isDatedWhenSaved() = runTest {
+        // Both call it without a clock.
+        val captured = slot<UserProfileEntity>()
+        coEvery { dao.upsertProfile(capture(captured)) } returns Unit
+        val before = Instant.now().toEpochMilli()
+
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS)
+
+        val measuredAt = captured.captured.weightMeasuredAtEpochMillis!!
+        assertTrue(measuredAt in before..Instant.now().toEpochMilli())
+        assertEquals(captured.captured.updatedAtEpochMillis, measuredAt)
     }
 
     @Test
@@ -205,21 +219,78 @@ class UserProfileRepositoryTest {
     }
 
     @Test
-    fun clearHcMeasuredAt_keepsWeight_andIsANoOpWhenAlreadyUnset() = runTest {
-        val synced = UserProfileEntity(
-            weightKg = 60.0,
-            weightOriginalValue = 60.0,
-            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+    fun theStoredRowTellsATypedWeightFromAHealthConnectReading() = runTest {
+        var row: UserProfileEntity? = null
+        coEvery { dao.getProfile() } answers { row }
+        coEvery { dao.upsertProfile(any()) } answers { row = firstArg() }
+        fun isReading() = row!!.toUserProfileModel().isHealthConnectReading
+
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = Instant.ofEpochMilli(5_000L))
+        assertFalse(isReading())
+        assertTrue(repository.adoptHcWeight(61.0, Instant.ofEpochMilli(4_000L), now = Instant.ofEpochMilli(6_000L)))
+        assertTrue(isReading())
+        // The unit switch with sync on keeps the reading's date.
+        repository.setWeightUnit(WeightUnit.POUNDS, now = Instant.ofEpochMilli(7_000L))
+        assertTrue(isReading())
+        repository.clearWeight(now = Instant.ofEpochMilli(8_000L))
+        assertFalse(isReading())
+        // A weight typed before weights were dated.
+        assertFalse(UserProfile(weightKg = 60.0, updatedAt = Instant.ofEpochMilli(1L)).isHealthConnectReading)
+    }
+
+    @Test
+    fun setWeightUnit_convertsBothWays_deriving_kgFromTheRoundedValue() = runTest {
+        var row = UserProfileEntity(
+            weightKg = WeightUnit.POUNDS.toKg(136.3), // 61.825… kg
+            weightOriginalValue = 136.3,
+            weightOriginalUnit = WeightUnit.POUNDS.name,
             updatedAtEpochMillis = 0L,
             weightMeasuredAtEpochMillis = 1_000L,
         )
-        coEvery { dao.getProfile() } returns synced
-        assertTrue(repository.clearHcMeasuredAt())
-        coVerify(exactly = 1) { dao.upsertProfile(synced.copy(weightMeasuredAtEpochMillis = null)) }
+        coEvery { dao.getProfile() } answers { row }
+        coEvery { dao.upsertProfile(any()) } answers { row = firstArg() }
 
-        coEvery { dao.getProfile() } returns synced.copy(weightMeasuredAtEpochMillis = null)
-        assertFalse(repository.clearHcMeasuredAt())
-        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
+        // lb -> kg, rounded as a sync rounds it; kg follows the rounded value.
+        repository.setWeightUnit(WeightUnit.KILOGRAMS, now = Instant.ofEpochMilli(7L))
+        assertEquals(61.8, row.weightOriginalValue!!, 0.0)
+        assertEquals(WeightUnit.KILOGRAMS.name, row.weightOriginalUnit)
+        assertEquals(61.8, row.weightKg!!, 0.0)
+        assertEquals(1_000L, row.weightMeasuredAtEpochMillis)
+        assertEquals(7L, row.updatedAtEpochMillis)
+
+        // kg -> lb: from 61.8 kg, so the round trip lands 0.1 lb off, the accepted drift.
+        repository.setWeightUnit(WeightUnit.POUNDS)
+        assertEquals(136.2, row.weightOriginalValue!!, 0.0)
+        assertEquals(WeightUnit.POUNDS.name, row.weightOriginalUnit)
+        assertEquals(WeightUnit.POUNDS.toKg(136.2), row.weightKg!!, 0.0)
+        assertEquals(1_000L, row.weightMeasuredAtEpochMillis)
+
+        // And back to kg: a kg value survives the round trip.
+        repository.setWeightUnit(WeightUnit.KILOGRAMS)
+        assertEquals(61.8, row.weightOriginalValue!!, 0.0)
+        assertEquals(61.8, row.weightKg!!, 1e-9)
+    }
+
+    @Test
+    fun setWeightUnit_withNoWeight_orOneThatRoundsTo0_writesNothing() = runTest {
+        coEvery { dao.getProfile() } returns UserProfileEntity(
+            weightKg = null,
+            weightOriginalValue = null,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = 0L,
+        )
+        repository.setWeightUnit(WeightUnit.POUNDS)
+
+        // 0.1 lb is 0.045 kg, which rounds to 0: backup restore rejects a 0 weight.
+        coEvery { dao.getProfile() } returns UserProfileEntity(
+            weightKg = WeightUnit.POUNDS.toKg(0.1),
+            weightOriginalValue = 0.1,
+            weightOriginalUnit = WeightUnit.POUNDS.name,
+            updatedAtEpochMillis = 0L,
+        )
+        repository.setWeightUnit(WeightUnit.KILOGRAMS)
+
+        coVerify(exactly = 0) { dao.upsertProfile(any()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

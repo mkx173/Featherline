@@ -1,5 +1,11 @@
 package com.mkx.hrttracker.ui.components
 
+import android.annotation.SuppressLint
+import android.os.Build
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
@@ -7,18 +13,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorPosition
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipScope
+import androidx.compose.material3.TooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 data class HrtDropdownMenuItem(
     val text: String,
@@ -98,7 +114,8 @@ fun HrtDropdownMenu(
 
 /**
  * [DropdownMenuPopup] for the app's menus: over the top-level pages, a swipe outside it turns
- * them as it closes (see [pagerMenuPopupProperties]), and it closes with a page sliding away.
+ * them as it closes (see [pagerMenuPopupProperties]), and it closes with a page sliding away. A
+ * back swipe closes it with its Back, see [KeepOpenOnBackSwipes].
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -112,6 +129,9 @@ fun HrtDropdownMenuPopup(
     val shown = LocalModalHostShown.current
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
     if (expanded && !shown) LaunchedEffect(Unit) { currentOnDismissRequest() }
+    // Above the app lock: gone at once, rather than animating out over it, and open again after.
+    if (LocalAppLocked.current) return
+    val screen = backSwipeScreen()
     DropdownMenuPopup(
         // Closed at once, even while the caller hasn't caught up.
         expanded = expanded && shown,
@@ -120,8 +140,125 @@ fun HrtDropdownMenuPopup(
         properties = pagerMenuPopupProperties(exemption),
     ) {
         CountOpenMenu(exemption)
+        KeepOpenOnBackSwipes(screen, onTap = { currentOnDismissRequest() }, exemption = exemption)
         content()
     }
+}
+
+/**
+ * [TooltipBox] for the app's tooltips. Its popup is a window of its own, which a persistent one
+ * keeps up until dismissed, over the lock screen too: under the app lock, it's gone at once, as a
+ * menu's is ([HrtDropdownMenuPopup]), so nothing in it, such as a colour picker, takes a tap there,
+ * and it's open again after. A back swipe leaves it to the screen's Back, see [KeepOpenOnBackSwipes].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HrtTooltipBox(
+    positionProvider: PopupPositionProvider,
+    tooltip: @Composable TooltipScope.() -> Unit,
+    state: TooltipState,
+    content: @Composable () -> Unit,
+) {
+    val locked by rememberUpdatedState(LocalAppLocked.current)
+    // TooltipBox shows the popup while its state is visible.
+    val shownState = remember(state) {
+        object : TooltipState by state {
+            override val isVisible: Boolean get() = state.isVisible && !locked
+        }
+    }
+    val screen = backSwipeScreen()
+    TooltipBox(
+        positionProvider = positionProvider,
+        tooltip = {
+            KeepOpenOnBackSwipes(screen, onTap = state::dismiss)
+            tooltip()
+        },
+        state = shownState,
+        content = content,
+    )
+}
+
+/**
+ * Keeps the popup this is called in open on a touch outside it that starts where a back swipe
+ * does: at a side of [screen], within its system gesture insets. Closed on that touch down, the
+ * popup's window would go mid-swipe and take the swipe's Back astray: on Android 14 a menu's goes
+ * on to the window beneath, which navigates, and a tooltip's is lost. The swipe's Back closes it
+ * instead, as the Back key does. A tap there calls [onTap]: a back swipe the system takes ends
+ * the touch with a cancel, a tap with an up within the touch slop. A touch modal popup sees that
+ * end itself; a menu over the pages leaves it to the pages ([consumeTapsClosingMenus]).
+ */
+// ponytail: a popup that is told only of the touch down and has no pages beneath, such as a
+// tooltip, can't see the end, so a tap there still leaves it open. (A menu in a dialog is touch
+// modal and closes; checked on API 35.) Over the pages, a vertical drag starting there scrolls
+// the page under the open menu.
+@SuppressLint("ClickableViewAccessibility")
+@Composable
+private fun KeepOpenOnBackSwipes(
+    screen: View,
+    onTap: () -> Unit,
+    exemption: PagerSwipeExemption? = null,
+) {
+    val popup = LocalView.current.rootView
+    val currentOnTap by rememberUpdatedState(onTap)
+    DisposableEffect(popup, screen, exemption) {
+        val touchSlop = ViewConfiguration.get(popup.context).scaledTouchSlop
+        // A touch modal popup's edge touch, followed to its end; whether it's still a tap.
+        var edgeDown: Offset? = null
+        var tap = false
+        // Ahead of the popup's own dismissal, on touch down outside it: taken, it never sees it.
+        popup.setOnTouchListener { _, event ->
+            // A new touch starts afresh, should the last one's end have gone astray.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) edgeDown = null
+            val start = edgeDown
+            if (start != null) {
+                val moved = (Offset(event.rawX, event.rawY) - start).getDistance() > touchSlop
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_UP -> {
+                        edgeDown = null
+                        if (tap && !moved) currentOnTap()
+                    }
+                    MotionEvent.ACTION_CANCEL -> edgeDown = null
+                    else -> if (moved || event.pointerCount > 1) tap = false
+                }
+                return@setOnTouchListener true
+            }
+            val outside = event.actionMasked == MotionEvent.ACTION_OUTSIDE ||
+                event.actionMasked == MotionEvent.ACTION_DOWN &&
+                (event.x < 0 || event.x >= popup.width || event.y < 0 || event.y >= popup.height)
+            if (!outside || !screen.isOnBackSwipeEdge(event.rawX)) return@setOnTouchListener false
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                edgeDown = Offset(event.rawX, event.rawY)
+                tap = true
+            } else {
+                exemption?.closeKeptMenu = { currentOnTap() }
+            }
+            true
+        }
+        onDispose {
+            popup.setOnTouchListener(null)
+            exemption?.closeKeptMenu = null
+        }
+    }
+}
+
+/**
+ * The root of the activity's full-screen window, whose sides are the screen's. A dialog's window
+ * may not reach them, and its insets only cover where it does.
+ */
+@Composable
+private fun backSwipeScreen(): View = LocalActivity.current?.window?.decorView ?: LocalView.current.rootView
+
+/**
+ * Whether a back swipe starts at [rawX] on the screen, at a side of this window root: within its
+ * system gesture insets, as the window has them before any view takes them.
+ */
+private fun View.isOnBackSwipeEdge(rawX: Float): Boolean {
+    // No back swipe before Android 10, where these insets fall back to the system bars'.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+    val edges = ViewCompat.getRootWindowInsets(this)?.getInsets(WindowInsetsCompat.Type.systemGestures())
+        ?: return false
+    val x = rawX - IntArray(2).also(this::getLocationOnScreen)[0]
+    return x >= 0 && x < edges.left || x >= width - edges.right && x < width
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

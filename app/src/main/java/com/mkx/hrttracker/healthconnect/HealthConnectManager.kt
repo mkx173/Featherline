@@ -40,8 +40,8 @@ interface HealthConnectManager {
      */
     fun supportsReadHistory(): Boolean
 
-    /** The latest weight record measured at or before [notAfter], or null. */
-    suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight?
+    /** The latest weight record dated before [now] (the end is exclusive), or null. */
+    suspend fun readLatestWeight(now: Instant): HealthConnectWeight?
 }
 
 val HEALTH_CONNECT_READ_WEIGHT_PERMISSION: String =
@@ -69,20 +69,25 @@ class AndroidHealthConnectManager @Inject constructor(
         client.features.getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY) ==
                 HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
 
-    override suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight? {
-        val response = client.readRecords(
-            ReadRecordsRequest(
-                recordType = WeightRecord::class,
-                timeRangeFilter = TimeRangeFilter.before(notAfter),
-                ascendingOrder = false,
-                pageSize = 1,
-            )
-        )
-        return response.records.firstOrNull()?.let { record ->
+    override suspend fun readLatestWeight(now: Instant): HealthConnectWeight? =
+        client.readRecords(latestWeightRequest(now)).records.firstOrNull()?.let { record ->
             HealthConnectWeight(weightKg = record.weight.inKilograms, time = record.time)
         }
-    }
 }
+
+/**
+ * Ends at [now]: on Android 14+ connect-client rebuilds each record through the
+ * platform's, which refuses a time after now, so a wider range turns one
+ * future-dated record into a failed sync. A reading dated ahead is read once
+ * its time comes. The end is exclusive, so one at exactly [now] waits for the
+ * next sync; it can't be after the platform's now when rebuilt.
+ */
+internal fun latestWeightRequest(now: Instant): ReadRecordsRequest<WeightRecord> = ReadRecordsRequest(
+    recordType = WeightRecord::class,
+    timeRangeFilter = TimeRangeFilter.before(now),
+    ascendingOrder = false,
+    pageSize = 1,
+)
 
 @Module
 @InstallIn(SingletonComponent::class)

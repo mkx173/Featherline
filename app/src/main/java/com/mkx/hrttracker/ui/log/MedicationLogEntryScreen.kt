@@ -24,7 +24,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
@@ -38,9 +37,7 @@ import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +100,7 @@ fun MedicationLogEntryScreen(
 
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
+    val alreadyLoggedMessage = stringResource(R.string.reminder_notification_nothing_to_add)
     val deleteEntryFailureMessage = stringResource(R.string.delete_entry_failure)
     LaunchedEffect(uiState.saveEntryResult) {
         when (uiState.saveEntryResult) {
@@ -110,6 +108,15 @@ fun MedicationLogEntryScreen(
                 Toast.makeText(
                     context,
                     saveEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                viewModel.consumeSaveEntryResult()
+            }
+
+            SaveEntryResult.ALREADY_LOGGED -> {
+                Toast.makeText(
+                    context,
+                    alreadyLoggedMessage,
                     Toast.LENGTH_SHORT,
                 ).show()
                 viewModel.consumeSaveEntryResult()
@@ -146,7 +153,6 @@ fun MedicationLogEntryScreen(
     }
 
     val previewStateMedicineUuid = uiState.resolvedMedicine?.uuid
-    val appliedAt = LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
     val sourceGroupScheduleOffsetOutsideFulfillmentWindow = remember(
         uiState.sourceGroupUuid,
         uiState.scheduledFor,
@@ -154,32 +160,19 @@ fun MedicationLogEntryScreen(
         uiState.sourceGroupNextScheduledFor,
         uiState.appliedDate,
         uiState.appliedTime,
+        uiState.appliedZoneId,
+        uiState.appliedOffset,
     ) {
-        uiState.shouldWarnScheduleWillNotBeFulfilled(appliedAt)
+        uiState.shouldWarnScheduleWillNotBeFulfilled()
     }
-    // The dose being logged fulfills this scheduled slot; exclude it from the
-    // preview's runway recompute so a future occurrence is not double-counted
-    // (pre-deducted stock + still-pending occurrence), but only when the saved
-    // log will actually fulfill the slot.
-    val previewFulfilledSlot = remember(
-        uiState.sourceGroupUuid,
-        uiState.scheduleTimeUuid,
-        uiState.scheduledFor,
-        sourceGroupScheduleOffsetOutsideFulfillmentWindow,
-    ) {
-        previewFulfilledScheduledSlot(
-            sourceGroupUuid = uiState.sourceGroupUuid,
-            scheduleTimeUuid = uiState.scheduleTimeUuid,
-            scheduledFor = uiState.scheduledFor,
-            sourceGroupScheduleOffsetOutsideFulfillmentWindow =
-                sourceGroupScheduleOffsetOutsideFulfillmentWindow,
-        )
-    }
+    // The record being logged covers its slot once saved (early or late too), for its own
+    // signature and count, so the preview's runway counts it as the save will.
+    val previewPendingEntry = remember(uiState) { uiState.previewPendingEntry() }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
-        remember(previewStateMedicineUuid, previewFulfilledSlot, viewModel) {
+        remember(previewStateMedicineUuid, previewPendingEntry, viewModel) {
             previewStateMedicineUuid?.let { uuid ->
                 { hypothetical: MedicineStock ->
-                    viewModel.previewState(uuid, hypothetical, previewFulfilledSlot)
+                    viewModel.previewState(uuid, hypothetical, previewPendingEntry)
                 }
             }
         }
@@ -204,26 +197,6 @@ fun MedicationLogEntryScreen(
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
         onScheduleFulfillmentWarningDismiss = viewModel::dismissScheduleFulfillmentWarning,
     )
-}
-
-internal fun previewFulfilledScheduledSlot(
-    sourceGroupUuid: UUID?,
-    scheduleTimeUuid: UUID?,
-    scheduledFor: LocalDateTime?,
-    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
-): FulfilledScheduledSlot? {
-    if (sourceGroupScheduleOffsetOutsideFulfillmentWindow) {
-        return null
-    }
-    return if (sourceGroupUuid != null && scheduleTimeUuid != null && scheduledFor != null) {
-        FulfilledScheduledSlot(
-            groupUuid = sourceGroupUuid,
-            scheduleTimeUuid = scheduleTimeUuid,
-            scheduledFor = scheduledFor,
-        )
-    } else {
-        null
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -315,6 +288,7 @@ private fun MedicationLogEntryScreenBody(
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
         appliedZoneId = uiState.appliedZoneId,
+        appliedOffset = uiState.appliedOffset,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
         onDoseAmountDeltaChange = { delta ->

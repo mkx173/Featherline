@@ -67,14 +67,14 @@ stays in one place — there are no scattered `if (unit == X)` arms in
 repositories or UI code (calibration's per-analyte defaults and
 display strings are a UI seat, not a conversion seat). Second,
 **canonical-value persistence** (the `canonicalValue` column on
-[`BloodTestResultEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L70))
+[`BloodTestResultEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L74))
 lets the trend chart sort and compare across rows that were entered in
 different units without re-converting on every read.
 
 ## Custom analytes
 
 Users can define their own analytes outside the catalog —
-[`CustomBloodAnalyteEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L33)
+[`CustomBloodAnalyteEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L36)
 holds an abbreviation, a display name, and a free-text `unitLabel`.
 See the entity blurb in
 [`data-model.md`](data-model.md#custombloodanalyteentity) for the
@@ -148,7 +148,10 @@ No other analyte, and no custom analyte, is read by the fit.
   collection time is below 5 pg/mL is marked "Not used", as a result
   drawn long after the last estradiol dose usually is. A value of zero
   or below cannot be log-transformed; it is set aside and listed for
-  review. Each set-aside result shows its reason on its row.
+  review. A result collected after now is left out until its time
+  comes ("Not used yet"): the doses due before it aren't logged yet, so
+  it would read as high and scale every estimate up. Each set-aside
+  result shows its reason on its row.
 - **Review.** A result the robust fit down-weights strongly (Student-t
   weight below 0.25) is listed under results to check. The user can keep
   it, which hides the tip and leaves it in the fit at its robust weight,

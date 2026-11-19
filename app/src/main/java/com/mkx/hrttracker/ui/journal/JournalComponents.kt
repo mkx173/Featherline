@@ -54,8 +54,11 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -113,6 +116,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -132,7 +136,6 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -162,9 +165,11 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -186,6 +191,10 @@ import java.time.LocalDate
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
+
+// The Today composer's editor identity while its day has no note. It is not tied to a date, so a
+// new-note draft keeps its editor and draft when the composer moves it to another day.
+internal const val TodayComposerNewNoteIdentity = "today-new-note"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
 private const val NoteTimelineRowTestTagPrefix = "note-timeline-row-"
 private const val NoteTimelineDotTestTagPrefix = "note-timeline-dot-"
@@ -2290,8 +2299,8 @@ private fun TodayMarkerRow(
 // Coordinates which note editor is open across the Today composer and the timeline rows below
 // it. Holding the open note's identity in one place keeps a single editor open at a time —
 // opening another closes the previous. The open identity is persisted via [Saver] (it is always
-// a note id or "today-<date>" String), so an editor left open survives process death and
-// navigating away and back: the row reopens with its saved draft (draftText is itself
+// a note id or [TodayComposerNewNoteIdentity], a String), so an editor left open survives process
+// death and navigating away and back: the row reopens with its saved draft (draftText is itself
 // rememberSaveable). On restore the field reopens but is not focused, so the keyboard stays down
 // until the user taps it (see the focus gate in NoteEditorCard).
 @Stable
@@ -2309,6 +2318,45 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
         if (activeEditorId == identity) activeEditorId = null
     }
 
+    // A card gone for good takes its editor and draft with it, leaving nothing to ask about.
+    internal fun drop(identity: Any) {
+        finish(identity)
+        reportUnsaved(identity, unsaved = false)
+    }
+
+    // The editor whose draft closing it would lose, as that editor reports it.
+    private var unsavedEditorId by mutableStateOf<Any?>(null)
+    internal var unsavedChanges: UnsavedChangesState? = null
+
+    // The open editor's field, which takes the focus back from a tapped one that asks first.
+    internal var openField: FocusRequester? = null
+
+    val hasUnsavedDraft: Boolean get() = activeEditorId != null && unsavedEditorId == activeEditorId
+
+    internal fun reportUnsaved(identity: Any, unsaved: Boolean) {
+        if (unsaved) unsavedEditorId = identity else if (unsavedEditorId == identity) unsavedEditorId = null
+    }
+
+    /**
+     * Runs [action], which closes the open editor and loses its draft, at once, or once the user
+     * discards the draft in the unsaved-changes dialog.
+     */
+    fun askFirst(action: () -> Unit) = askFirstToLeave { action(); false }
+
+    /**
+     * As [askFirst], for a [leave] of the screen that returns whether it navigated: a pop refused
+     * mid-transition keeps the page and its draft, so the draft goes on counting.
+     */
+    fun askFirstToLeave(leave: () -> Boolean) {
+        val guard = unsavedChanges
+        if (guard == null || !hasUnsavedDraft) {
+            leave()
+            return
+        }
+        guard.update(this, true)
+        guard.leave(setOf(this), leave)
+    }
+
     companion object {
         val Saver: Saver<NoteEditorController, String> = Saver(
             save = { it.activeEditorId as? String },
@@ -2317,19 +2365,39 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
     }
 }
 
+// Registers the controller's open draft with the unsaved-changes guard while composed; [inBackStack]
+// for a screen of its own in the NavHost (All Notes), whose draft a tab or a Home deep link loses.
+// ponytail: only while composed; All Notes covered by a page pushed over it (the milestones deep
+// link) doesn't ask, as the plan editor's ViewModel-held edits do.
 @Composable
-fun rememberNoteEditorController(): NoteEditorController =
-    rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
+fun rememberNoteEditorController(inBackStack: Boolean = false): NoteEditorController {
+    val controller = rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
+    val unsavedChanges = LocalUnsavedChanges.current
+    val unsaved = controller.hasUnsavedDraft
+    SideEffect {
+        controller.unsavedChanges = unsavedChanges
+        if (inBackStack) unsavedChanges.hostInBackStack(controller)
+        unsavedChanges.update(controller, unsaved)
+    }
+    DisposableEffect(unsavedChanges, controller) { onDispose { unsavedChanges.remove(controller) } }
+    return controller
+}
 
+// [today] is the day this composer shows, and the day its save and delete write. [onSave] sends a
+// save and returns its id in [noteSaves], where the composer follows its outcome. [onIdle] is passed
+// by a caller whose today has moved on (a date rollover); see NoteEditorCard. [isToday] is false
+// while a session is held on a day that is no longer today, so the header names that date instead.
 @Composable
 fun TodayComposer(
     today: LocalDate,
     note: Note?,
-    onSave: (String) -> Unit,
-    onDelete: () -> Unit = { },
+    onSave: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
+    onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
-    saveFailureToken: Int = 0,
+    onIdle: (() -> Unit)? = null,
+    isToday: Boolean = true,
 ) {
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -2337,15 +2405,16 @@ fun TodayComposer(
         NoteEditorCard(
             modifier = Modifier.padding(bottom = 6.dp),
             text = note?.text.orEmpty(),
-            identity = note?.id ?: "today-$today",
+            identity = note?.id ?: TodayComposerNewNoteIdentity,
             controller = editorController,
-            onSave = onSave,
-            onDelete = onDelete,
+            onSave = { onSave(today, it) },
+            onDelete = { onDelete(today) },
             fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
             reserveWritingHeight = true,
-            header = { TodayComposerHeader(today = today) },
+            header = { TodayComposerHeader(today = today, isToday = isToday) },
             prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
-            saveFailureToken = saveFailureToken,
+            noteSaves = noteSaves,
+            onIdle = onIdle,
         )
     }
 }
@@ -2365,29 +2434,86 @@ private fun NoteEditorCard(
     text: String,
     identity: Any,
     controller: NoteEditorController,
-    onSave: (String) -> Unit,
+    // Sends a save and returns its id in [noteSaves].
+    onSave: (String) -> Long,
+    noteSaves: NoteSaves,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     fieldModifier: Modifier = Modifier,
     reserveWritingHeight: Boolean = false,
     header: (@Composable () -> Unit)? = null,
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
-    saveFailureToken: Int = 0,
     rowGestureSelectable: Boolean = false,
     // When non-null (an All Notes row that is idle and not yet in selection mode), the idle text
     // owns its own gestures: a tap begins editing with the cursor at the tapped character, and a
     // long-press invokes this to enter selection. Null (Today/timeline, or a row already in
     // selection mode) leaves the idle text transparent so the enclosing row handles taps.
     onIdleLongPress: (() -> Unit)? = null,
+    // True while the All Notes list selects rows. A failed save then keeps its draft held rather
+    // than reopening the editor, so no row is both editing and selectable; a tap after the
+    // selection ends reopens it.
+    isSelectionMode: Boolean = false,
+    // Told whenever this card starts or stops holding a save (one in flight, or a failed draft), as
+    // it happens, so its caller can keep the card's note where it is meanwhile: the Journal doesn't
+    // move the composer onto a day whose timeline row holds one (that row would leave, latch and all).
+    onHeldChange: ((Boolean) -> Unit)? = null,
+    // When non-null, invoked whenever this card holds no open edit and no in-flight save, so the
+    // caller can retarget it without dropping either (the Today composer after a date rollover).
+    // An edit that closes with no save in flight invokes it at once, so the card never shows a
+    // frame of the day it is leaving.
+    onIdle: (() -> Unit)? = null,
 ) {
+    // A new note's identity becomes its id once its save lands (and a note deleted elsewhere goes
+    // back to the new-note one). If the shared controller still held the identity this card last
+    // had, the editor would stay open under a name no card shows: the field keeps focus on a
+    // closed card, and the editor opens by itself once a card has that identity again (the next
+    // day's new note). So an open editor follows its card. Saveable, so it follows a change made
+    // while this screen was away too.
+    var composedIdentity by rememberSaveable { mutableStateOf(identity) }
+    if (composedIdentity != identity) {
+        if (controller.isEditing(composedIdentity)) controller.begin(identity)
+        composedIdentity = identity
+    }
     // The open/closed state is owned by the shared controller so only one card edits at a time
     // and the open state is dropped on navigation away. The draft stays local and is re-seeded
     // from [text] each time editing begins.
     val isEditing = controller.isEditing(identity)
-    // TextFieldValue (not a bare String) so editing can begin with the cursor at the tapped
-    // character (see [beginEditingAtCursor]); its selection also survives process death via the Saver.
-    var draft by rememberSaveable(identity, text, stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(text, TextRange(text.length)))
+    // A brand-new note's saved [text] only flips non-empty after the save round-trips through the
+    // repository — a frame or more after the editor closes [isEditing] synchronously. Without this
+    // latch there's a window where neither isEditing nor text is truthy, so the field would collapse
+    // back to the prompt for a beat ("write about today…" blinking in) before the saved text lands.
+    // Set when a save is committed; released once it lands (see the outcome effect below).
+    // rememberSaveable, not remember: if the card is disposed while the save is in flight (navigate
+    // away, or process death), the latch must survive so the reopened card holds the unsaved draft
+    // instead of letting the close-revert below mistake it for an abandoned edit and discard it.
+    // Not keyed on [identity], nor is the draft: the composer's identity changes under its own saves
+    // (its new note lands), and they are still this card's. Its latch is idle whenever it moves on
+    // to another day.
+    var savePending by rememberSaveable { mutableStateOf(false) }
+    // This card's latest save, by its id in [noteSaves], until its outcome is handled. Saveable for
+    // the same reason; after process death the new ViewModel doesn't know the id, and the save
+    // counts as failed. An earlier save of this card's, sent before it, has settled by the time this
+    // one does: a note's writes run one at a time, in the order sent.
+    var pendingSaveId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // The text that save sent: the held card shows it, and Cancel or a close goes back to it.
+    var pendingSaveText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Set when a save fails while another editor is open: the latch then holds only this card's
+    // failed draft, and the tap that reopens it releases the latch. Saveable for the same reason.
+    var saveFailed by rememberSaveable { mutableStateOf(false) }
+    // A TextFieldState so editing can begin with the cursor at the tapped character (see
+    // [beginEditingAtCursor]); rememberTextFieldState saves its text and selection, unkeyed.
+    val draft = rememberTextFieldState(initialText = text)
+    // The text the draft was seeded from. When the note changes under the draft (its save lands, a
+    // new note appears, the composer moves to another day, or All Notes edited it while this screen
+    // was away), a draft you haven't touched takes the new text, so Save can't write the older one
+    // over it. One you edited keeps your edit, and one held for a save keeps the text it sent (the
+    // outcome effect below shows the note once the save lands). Untouched compares trimmed text, as
+    // Save and the unsaved-draft check do: a draft that differs only by leading or trailing spaces
+    // is not an edit.
+    var draftSeed by rememberSaveable { mutableStateOf(text) }
+    if (draftSeed != text) {
+        if (draft.text.toString().trim() == draftSeed.trim() && !savePending) draft.setTextAndPlaceCursorAtEnd(text)
+        draftSeed = text
     }
     var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
     // Whether this edit targets text that already existed. Captured when editing begins and
@@ -2396,15 +2522,6 @@ private fun NoteEditorCard(
     // the delete button from it live would pop delete in mid-close; this keeps it hidden for a
     // note first created in this session.
     var editingExistingNote by remember { mutableStateOf(text.isNotEmpty()) }
-    // A brand-new note's saved [text] only flips non-empty after the save round-trips through the
-    // repository — a frame or more after the editor closes [isEditing] synchronously. Without this
-    // latch there's a window where neither isEditing nor text is truthy, so the field would collapse
-    // back to the prompt for a beat ("write about today…" blinking in) before the saved text lands.
-    // Set when a save is committed; released once the text catches up (see the effect below).
-    // rememberSaveable, not remember: if the card is disposed while the save is in flight (navigate
-    // away, or process death), the latch must survive so the reopened card holds the unsaved draft
-    // instead of letting the close-revert below mistake it for an abandoned edit and discard it.
-    var savePending by rememberSaveable(identity) { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
@@ -2442,35 +2559,74 @@ private fun NoteEditorCard(
         // calibration field has the same issue, to be fixed for both later.
         keyboardController?.hide()
         controller.finish(identity)
+        if (!savePending) onIdle?.invoke()
+    }
+
+    // Every change of the latch goes through here, so [onHeldChange] hears of it as it happens.
+    fun hold(held: Boolean) {
+        savePending = held
+        onHeldChange?.invoke(held)
+    }
+
+    // A tap that reopens a failed draft for retry releases its latch. A save still in flight keeps
+    // it, so the draft survives a Cancel until that save lands or fails.
+    val releaseFailedSave = {
+        if (saveFailed) {
+            hold(false)
+            saveFailed = false
+        }
     }
 
     // Open the editor with the cursor at [cursorOffset] — a tap into the idle text maps the tap
     // position to a character index. Null parks the cursor at the end, the natural spot for the
-    // prompt and for any tap that doesn't land on the text itself.
-    val beginEditingAtCursor = { cursorOffset: Int? ->
-        val offset = (cursorOffset ?: text.length).coerceIn(0, text.length)
-        draft = TextFieldValue(text, TextRange(offset))
+    // prompt and for any tap that doesn't land on the text itself. A held draft (a save in flight,
+    // or a failed one) is what the idle text shows, so it is what opens; otherwise the saved text.
+    val openAtCursor = { cursorOffset: Int? ->
+        val seed = if (savePending) draft.text.toString() else text
+        val offset = (cursorOffset ?: seed.length).coerceIn(0, seed.length)
+        draft.edit {
+            replace(0, length, seed)
+            selection = TextRange(offset)
+        }
         editingExistingNote = text.isNotEmpty()
+        releaseFailedSave()
         controller.begin(identity)
     }
+    // Opening this card closes another one open, which asks first if its draft is unsaved. What
+    // runs after the dialog is the latest composition's, as is Cancel's below.
+    val latestOpenAtCursor by rememberUpdatedState(openAtCursor)
+    val beginEditingAtCursor = { cursorOffset: Int? -> controller.askFirst { latestOpenAtCursor(cursorOffset) } }
     val beginEditing = { beginEditingAtCursor(null) }
+    // A tap into the field opens it as it is, held draft or saved text.
+    val openOnFocus = {
+        editingExistingNote = text.isNotEmpty()
+        releaseFailedSave()
+        controller.begin(identity)
+    }
+    val latestOpenOnFocus by rememberUpdatedState(openOnFocus)
     // The idle text's gesture detector outlives recompositions; read the latest callbacks through
     // these so a fresh [onIdleLongPress]/[beginEditingAtCursor] lambda doesn't restart it each frame.
     val currentBeginEditingAtCursor by rememberUpdatedState(beginEditingAtCursor)
     val currentIdleLongPress by rememberUpdatedState(onIdleLongPress)
 
     // Commit the draft and close the editor. Shared by the Save button and the IME "Done" action
-    // so both follow the same save-then-clear-focus path. A blank or unchanged draft writes
-    // nothing and just reverts to the saved text.
-    val saveEditing = {
-        val trimmed = draft.text.trim()
+    // so both follow the same save-then-clear-focus path. An unchanged draft, or a new note's blank
+    // one, writes nothing and just reverts to the saved text; an existing note's blank one offers
+    // to delete the note instead (the editor stays open if you keep it).
+    val saveEditing = saveEditing@{
+        val trimmed = draft.text.toString().trim()
+        if (trimmed.isEmpty() && text.isNotEmpty()) {
+            isDeleteConfirmationVisible = true
+            return@saveEditing
+        }
         if (trimmed.isNotEmpty() && trimmed != text.trim()) {
             // Hold the field through the async save so the prompt doesn't blink back in while the
-            // committed text round-trips. Released by the effect below once [text] reflects the save.
-            savePending = true
-            onSave(trimmed)
+            // committed text round-trips. Released by the outcome effect below once the save lands.
+            hold(true)
+            pendingSaveText = trimmed
+            pendingSaveId = onSave(trimmed)
         } else if (text.isNotEmpty()) {
-            draft = TextFieldValue(text, TextRange(text.length))
+            draft.setTextAndPlaceCursorAtEnd(text)
         }
         finishEditing()
     }
@@ -2478,16 +2634,39 @@ private fun NoteEditorCard(
     // Discard the in-progress edit and close. Existing text stays mounted, so revert the draft to
     // it; a brand-new note animates back to the prompt, so leave the draft alone (clearing it
     // would blank the field mid-exit) and let the next open re-seed it. Shared by the Cancel button
-    // and the back gesture.
+    // and the back gesture. A draft whose save is still in flight goes back to the text that save
+    // sent instead: the held card shows it until the save lands, and if the save fails, it is the
+    // only copy.
     val cancelEditing = {
-        if (text.isNotEmpty()) draft = TextFieldValue(text, TextRange(text.length))
+        val revertTo = if (savePending) pendingSaveText else text.ifEmpty { null }
+        if (revertTo != null) draft.setTextAndPlaceCursorAtEnd(revertTo)
         finishEditing()
+    }
+    val latestCancelEditing by rememberUpdatedState(cancelEditing)
+    val cancelAskingFirst = { controller.askFirst { latestCancelEditing() } }
+
+    // What closing the editor would lose: the draft, unless it is what Cancel goes back to.
+    val hasUnsavedDraft = isEditing &&
+        draft.text.toString().trim() != (if (savePending) pendingSaveText.orEmpty() else text).trim()
+    SideEffect {
+        controller.reportUnsaved(identity, hasUnsavedDraft)
+        if (isEditing) controller.openField = focusRequester
+    }
+
+    // A lazy list keeps a scrolled-away item's saved state only until the next state save, so the
+    // card stays composed while it holds work to lose: an open editor (and its dialogs), or a save
+    // held in flight or failed.
+    val pinnable = LocalPinnableContainer.current
+    val holdsWork = isEditing || savePending
+    DisposableEffect(pinnable, holdsWork) {
+        val handle = if (holdsWork) pinnable?.pin() else null
+        onDispose { handle?.release() }
     }
 
     // While an editor is open, back cancels the edit and dismisses the keyboard instead of leaving
     // the journal; once nothing is open the handler is disabled and back falls through to
     // navigation (home). Only the open card has isEditing == true, so only its handler is enabled.
-    BackHandler(enabled = isEditing) { cancelEditing() }
+    BackHandler(enabled = isEditing) { cancelAskingFirst() }
 
     Column(
         modifier = modifier,
@@ -2550,7 +2729,7 @@ private fun NoteEditorCard(
                             Modifier
                         }
                         Text(
-                            text = draft.text,
+                            text = draft.text.toString(),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             onTextLayout = { idleTextLayout = it },
@@ -2560,12 +2739,25 @@ private fun NoteEditorCard(
                         )
                     } else {
                         ComposerTextField(
-                            value = draft,
-                            onValueChange = { draft = it },
+                            state = draft,
                             focusRequester = focusRequester,
                             onFocused = {
-                                editingExistingNote = text.isNotEmpty()
-                                controller.begin(identity)
+                                if (isEditing) {
+                                    openOnFocus()
+                                } else {
+                                    controller.askFirst { latestOpenOnFocus() }
+                                    // Asking: the open editor takes the focus back, so typing
+                                    // can't reach this closed field, and keeping it resumes there.
+                                    if (!controller.isEditing(identity)) {
+                                        val open = controller.openField
+                                        revealScope.launch {
+                                            // false, not a throw, when the open card has left composition.
+                                            if (open == null || !open.requestFocus()) {
+                                                focusManager.clearFocus()
+                                            }
+                                        }
+                                    }
+                                }
                             },
                             onImeAction = saveEditing,
                             expanded = isEditing,
@@ -2599,7 +2791,7 @@ private fun NoteEditorCard(
                             } else {
                                 null
                             },
-                            onCancel = cancelEditing,
+                            onCancel = cancelAskingFirst,
                             onSave = saveEditing,
                         )
                     }
@@ -2619,42 +2811,77 @@ private fun NoteEditorCard(
     // row renders the draft, and re-opening goes through controller.begin (not beginEditing) without
     // re-seeding, so an abandoned edit would otherwise resurface — and be re-savable — after
     // switching to another card, cancelling, backing out, or confirming a delete (whose write may
-    // fail, leaving the row showing an unsaved draft as if persisted). A pending save keeps its
-    // draft: it is held through the round-trip and the failure-recovery reopen.
+    // fail, leaving the row showing an unsaved draft as if persisted). All but the delete ask
+    // first when the draft is unsaved (NoteEditorController.askFirst). A pending save keeps the text
+    // it sent instead (an edit made after reopening it is discarded the same way): that text is held
+    // through the round-trip and the failure-recovery reopen.
     var firstCompositionSettled by remember { mutableStateOf(false) }
     LaunchedEffect(isEditing) {
         if (isEditing) {
             if (firstCompositionSettled) runCatching { focusRequester.requestFocus() }
-        } else if (!savePending) {
-            draft = TextFieldValue(text, TextRange(text.length))
+        } else {
+            val kept = if (savePending) pendingSaveText else text
+            if (kept != null) draft.setTextAndPlaceCursorAtEnd(kept)
         }
         firstCompositionSettled = true
     }
 
-    // Release the save latch once the committed text lands — from here the field is held by
-    // text.isNotEmpty() and normal text-driven logic governs again (so a later delete can revert
-    // to the prompt). Until then savePending keeps the field mounted through the save round-trip.
-    LaunchedEffect(text) {
-        if (text.isNotEmpty()) savePending = false
+    // The outcome of this card's latest save, from [noteSaves] by its id: another card's save isn't
+    // this one, nor is an earlier save of this card's (settled before it).
+    val saveOutcome = pendingSaveId?.let(noteSaves::outcome)
+    // The save this card was restored with, if it had already landed: coming back to the screen (or
+    // a recreation) finds it with [text] current. A save sent from this composition is never one,
+    // even if it settles before the next frame, ahead of [text].
+    val landedWhileAwayId = remember { pendingSaveId?.takeIf { saveOutcome == NoteSaveOutcome.Landed } }
+
+    // Once the save lands, release the latch and show the saved note: from here the field is held
+    // by text.isNotEmpty() and normal text-driven logic governs again (so a later delete can revert
+    // to the prompt). A save that lands while the card is composed waits for [text] to show it: the
+    // repository's flow emits a frame or more later, and until then the latch holds the field, so a
+    // new note doesn't blink back to the prompt. One that landed while away finds [text] current,
+    // even edited or deleted elsewhere since.
+    //
+    // A failed save never round-trips text, so on a failure re-open this editor so the unsaved
+    // draft stays editable for retry. controller.begin(identity) is used directly (not
+    // beginEditing) so draftText is NOT re-seeded — the typed text is preserved. Only reclaim the
+    // editor when nothing else is open. If the user has since opened another card, reopening this
+    // one would steal the shared controller from it, flipping it closed so its close-revert wipes
+    // the draft the user is actively typing. In that case keep savePending set so this card's field
+    // stays held with its own unsaved draft, and mark it failed, so the tap that reopens it releases
+    // the latch. If this card is itself open (reopened while the save was in flight), there is
+    // nothing to reclaim: just release the latch. In selection mode the draft is held the same way
+    // (see [isSelectionMode]).
+    //
+    // A failure whose text the note already shows lost nothing (an earlier save of the same text
+    // landed, or the process died after this one committed), so it is let go as a landing.
+    LaunchedEffect(saveOutcome, text) {
+        if (saveOutcome == null || saveOutcome == NoteSaveOutcome.InFlight) return@LaunchedEffect
+        val shown = text == pendingSaveText
+        if (shown || saveOutcome == NoteSaveOutcome.Landed) {
+            if (!shown && pendingSaveId != landedWhileAwayId) return@LaunchedEffect
+            pendingSaveId = null
+            hold(false)
+            if (!isEditing) draft.setTextAndPlaceCursorAtEnd(text)
+        } else {
+            pendingSaveId = null
+            val openEditor = controller.activeEditorId
+            if ((openEditor == null || openEditor == identity) && !isSelectionMode) {
+                hold(false)
+                saveFailed = false
+                controller.begin(identity)
+            } else {
+                saveFailed = true
+            }
+        }
     }
 
-    // A failed save never round-trips text, so the savePending latch (and the held field showing the
-    // unsaved draft as if it closed) would otherwise stick forever. When the VM signals a save
-    // failure via a bumped token, re-open this editor so the unsaved draft stays editable for retry.
-    // The token is shared by every note composer, but only the one that actually saved has
-    // savePending set, so only it reacts; the initial token (0) is a no-op because savePending is
-    // false then. controller.begin(identity) is used directly (not beginEditing) so draftText is NOT
-    // re-seeded — the typed text is preserved.
-    //
-    // Only reclaim the editor when nothing else is open. If the user has since opened another card,
-    // reopening this one would steal the shared controller from it, flipping it closed so its
-    // close-revert wipes the draft the user is actively typing. In that case keep savePending set so
-    // this card's field stays held with its own unsaved draft, recoverable when the user taps it.
-    LaunchedEffect(saveFailureToken) {
-        if (savePending && controller.activeEditorId == null) {
-            savePending = false
-            controller.begin(identity)
-        }
+    // Keyed on whether [onIdle] is set, so it fires both when a session ends with one set and when
+    // one is set (a rollover, or a restore onto a later day) while the card is already idle. An
+    // open session is never closed here: it keeps its day until it ends.
+    val isIdle = !isEditing && !savePending
+    val currentOnIdle by rememberUpdatedState(onIdle)
+    LaunchedEffect(isIdle, onIdle != null) {
+        if (isIdle) currentOnIdle?.invoke()
     }
 
     // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
@@ -2672,6 +2899,11 @@ private fun NoteEditorCard(
             onDismissRequest = { isDeleteConfirmationVisible = false },
             onConfirm = {
                 isDeleteConfirmationVisible = false
+                // The delete runs after any save of this card's in flight and supersedes it: the
+                // note may never show that save's text, which the latch would wait on forever.
+                pendingSaveId = null
+                saveFailed = false
+                hold(false)
                 finishEditing()
                 onDelete()
             },
@@ -2682,6 +2914,7 @@ private fun NoteEditorCard(
 @Composable
 private fun TodayComposerHeader(
     today: LocalDate,
+    isToday: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val appLocale = rememberAppLocale()
@@ -2700,7 +2933,10 @@ private fun TodayComposerHeader(
         )
         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
 
-        val journalTodayLabel = stringResource(R.string.journal_today)
+        // Date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue"). An edit
+        // held past its day leads with that date alone, so it never reads as today's note.
+        val todayLabel = dateFormatter(today)
+        val journalTodayLabel = if (isToday) stringResource(R.string.journal_today) else todayLabel
         Text(
             text = journalTodayLabel,
             style = MaterialTheme.typography.labelLarge,
@@ -2710,15 +2946,15 @@ private fun TodayComposerHeader(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).alignByBaseline(),
         )
-        // Trailing date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue").
-        val todayLabel = dateFormatter(today)
-        Text(
-            text = todayLabel,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alignByBaseline()
-        )
+        if (isToday) {
+            Text(
+                text = todayLabel,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline()
+            )
+        }
     }
 }
 
@@ -2804,8 +3040,7 @@ private fun TodayComposerPrompt(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ComposerTextField(
-    value: TextFieldValue,
-    onValueChange: (TextFieldValue) -> Unit,
+    state: TextFieldState,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onImeAction: () -> Unit,
@@ -2826,8 +3061,7 @@ private fun ComposerTextField(
         label = "composer-field-min-height",
     )
     BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+        state = state,
         modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() },
@@ -2837,8 +3071,8 @@ private fun ComposerTextField(
         // path as the Save button, matching the calibration notes field's onDone. The field stays
         // multiline for display.
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onImeAction() }),
-        decorationBox = { innerTextField ->
+        onKeyboardAction = { onImeAction() },
+        decorator = TextFieldDecorator { innerTextField ->
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = minHeight)) {
                 innerTextField()
             }
@@ -2850,12 +3084,20 @@ private fun ComposerTextField(
 fun NotesTimeline(
     notes: List<Note>,
     today: LocalDate,
-    onSave: (LocalDate, String) -> Unit,
+    // Sends a save and returns its id in [noteSaves], as TodayComposer's does.
+    onSave: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
     onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
-    saveFailureToken: Int = 0,
+    // Whether a note is still the caller's to list, read as its row leaves composition: a row
+    // whose note isn't has left for good, and its open editor is closed. One that is went with
+    // the screen, which keeps its editor open for its return.
+    isListed: (noteId: String) -> Boolean = { true },
+    // Told, by note id, whenever a row starts or stops holding a save; see NoteEditorCard.
+    onHeldChange: (noteId: String, held: Boolean) -> Unit = { _, _ -> },
 ) {
+    val latestIsListed by rememberUpdatedState(isListed)
     if (notes.isEmpty()) {
         return
     }
@@ -2871,16 +3113,25 @@ fun NotesTimeline(
             modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp),
         ) {
             notes.forEachIndexed { index, note ->
-                NoteTimelineRow(
-                    note = note,
-                    isFirst = index == 0,
-                    isLast = index == notes.lastIndex,
-                    today = today,
-                    controller = editorController,
-                    onSave = onSave,
-                    onDelete = onDelete,
-                    saveFailureToken = saveFailureToken,
-                )
+                // Keyed on the note, so a row's editor state stays with its note when the list
+                // shifts: today's note joining at midnight, or a note above being deleted.
+                key(note.id) {
+                    // An open row isn't scrolled out of composition: it pins its lazy item.
+                    DisposableEffect(Unit) {
+                        onDispose { if (!latestIsListed(note.id)) editorController.drop(note.id) }
+                    }
+                    NoteTimelineRow(
+                        note = note,
+                        isFirst = index == 0,
+                        isLast = index == notes.lastIndex,
+                        today = today,
+                        controller = editorController,
+                        onSave = onSave,
+                        noteSaves = noteSaves,
+                        onDelete = onDelete,
+                        onHeldChange = { onHeldChange(note.id, it) },
+                    )
+                }
             }
         }
     }
@@ -2893,10 +3144,11 @@ private fun NoteTimelineRow(
     isLast: Boolean,
     today: LocalDate,
     controller: NoteEditorController,
-    onSave: (LocalDate, String) -> Unit,
+    onSave: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
     onDelete: (LocalDate) -> Unit,
+    onHeldChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    saveFailureToken: Int = 0,
 ) {
     val dateLabel = noteTimelineDateLabel(note.date, today)
     val dateLabelStyle = MaterialTheme.typography.labelLarge
@@ -2955,9 +3207,10 @@ private fun NoteTimelineRow(
                 identity = note.id,
                 controller = controller,
                 onSave = { onSave(note.date, it) },
+                noteSaves = noteSaves,
                 onDelete = { onDelete(note.date) },
                 fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
-                saveFailureToken = saveFailureToken,
+                onHeldChange = onHeldChange,
             )
         }
         // Accent dot, vertically centred on the date label.
@@ -3050,10 +3303,10 @@ fun AllNotesNoteRow(
     index: Int,
     count: Int,
     controller: NoteEditorController,
-    onSave: (LocalDate, String) -> Unit,
+    onSave: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
-    saveFailureToken: Int = 0,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: (LocalDate) -> Unit = {},
@@ -3077,7 +3330,7 @@ fun AllNotesNoteRow(
     val rowOnClick: (() -> Unit)? = when {
         isSelectionMode -> { { onToggleSelection(note.date) } }
         isEditingThisRow -> null
-        else -> { { controller.begin(note.id) } }
+        else -> { { controller.askFirst { controller.begin(note.id) } } }
     }
     val rowOnLongClick: (() -> Unit)? = when {
         isSelectionMode -> { { onToggleSelection(note.date) } }
@@ -3103,10 +3356,11 @@ fun AllNotesNoteRow(
             identity = note.id,
             controller = controller,
             onSave = { onSave(note.date, it) },
+            noteSaves = noteSaves,
             onDelete = { onDelete(note.date) },
             fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
-            saveFailureToken = saveFailureToken,
             rowGestureSelectable = true,
+            isSelectionMode = isSelectionMode,
             // Only an idle, not-yet-selecting row lets its text drive begin-edit/enter-selection;
             // in selection mode the text goes transparent so the row toggles instead.
             onIdleLongPress = if (isSelectionMode) null else {
@@ -3317,7 +3571,8 @@ private fun TodayComposerPreview() {
         TodayComposer(
             today = previewToday,
             note = Note(id = "today", date = previewToday, text = "Quiet day. Grateful for the small wins."),
-            onSave = {},
+            onSave = { _, _ -> 0L },
+            noteSaves = remember { NoteSaves() },
             onDelete = {},
         )
     }
@@ -3327,7 +3582,13 @@ private fun TodayComposerPreview() {
 @Composable
 private fun NotesTimelinePreview() {
     JournalComponentPreview {
-        NotesTimeline(notes = previewNotes(), today = previewToday, onSave = { _, _ -> }, onDelete = {})
+        NotesTimeline(
+            notes = previewNotes(),
+            today = previewToday,
+            onSave = { _, _ -> 0L },
+            noteSaves = remember { NoteSaves() },
+            onDelete = {},
+        )
     }
 }
 

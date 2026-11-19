@@ -44,6 +44,8 @@ internal fun buildWidgetSnapshotRecord(
         Locale.US,
         uses24HourFormat = true
     ),
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant = now.atZone(zoneId).toInstant(),
 ): WidgetSnapshotRecord {
     val activeGroups = homeSnapshot.activeGroups
     val allGroups = activeGroups + homeSnapshot.archivedGroups
@@ -68,6 +70,7 @@ internal fun buildWidgetSnapshotRecord(
         ),
         now = now,
         zoneId = zoneId,
+        clockNow = clockNow,
     )
 
     val lastNightRows = sections.lastNight?.let { previousSchedule ->
@@ -149,6 +152,7 @@ internal fun buildWidgetSnapshotRecord(
         zoneId = zoneId.id,
         anchorDateEpochDay = sections.today.toEpochDay(),
         fourAmAnchorDateEpochDay = medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay(),
+        builtAt = now,
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,
@@ -159,6 +163,7 @@ internal fun buildWidgetSnapshotRecord(
         appLanguageTag = settings.appLanguageOption.languageTag,
         doseRows = lastNightRows + (todayScheduledRows + manualRows).sortedBy { row -> row.scheduledAt } + comingUpRows,
         pkProjection = widgetEstimate?.toWidgetRecord(generatedAt = now.atZone(zoneId).toInstant()),
+        sourceGeneratedAtEpochMillis = homeSnapshot.generatedAtEpochMillis,
     )
 }
 

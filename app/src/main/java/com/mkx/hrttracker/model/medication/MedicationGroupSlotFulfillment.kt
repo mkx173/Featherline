@@ -81,7 +81,7 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
 ): Boolean {
     val scheduledFor = entry.scheduledFor ?: return false
     val appliedAtZoneId = displayZoneOf(entry.appliedAtTimeZoneId, zoneId)
-    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId).toLocalDateTime()
+    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId)
     return isWithinScheduleFulfillmentWindow(
         scheduledFor = scheduledFor,
         appliedAt = appliedAt,
@@ -137,13 +137,47 @@ internal fun isSlotFulfilled(
     val loggedCounts = slotLogs
         .groupBy(MedicationSignature::fromLogEntry)
         .mapValues { (_, entriesForSignature) ->
-            entriesForSignature.sumOf { entry -> entry.count }
+            entriesForSignature.recordedCount()
         }
 
     return requiredCounts.all { (signature, requiredCount) ->
         loggedCounts.getOrDefault(signature, 0) >= requiredCount
     }
 }
+
+/**
+ * What [slot] still misses per medication signature: the plan's count less every record
+ * attached to the slot, in or out of its fulfillment window. A late or early record doesn't
+ * count toward adherence ([isSlotFulfilled]), but the dose was taken, so logging, reminders
+ * and stock demand don't ask for it again. Leaves out a signature with nothing missing;
+ * [medications] narrows the plan's.
+ */
+internal fun missingSlotCounts(
+    group: MedicationGroup,
+    slot: MedicationGroupSlotKey,
+    entries: List<MedicationLogEntry>,
+    medications: List<MedicationGroupMedication> = group.medications,
+): Map<MedicationSignature, Int> {
+    val loggedCounts = entries
+        .filter { entry -> isEntryForPlanSlot(group = group, slot = slot, entry = entry) }
+        .groupBy(MedicationSignature::fromLogEntry)
+        .mapValues { (_, logs) -> logs.recordedCount() }
+    return medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .mapValues { (signature, signatureMedications) ->
+            signatureMedications.sumOf(MedicationGroupMedication::count) -
+                    loggedCounts.getOrDefault(signature, 0)
+        }
+        .filterValues { missingCount -> missingCount > 0 }
+}
+
+/**
+ * The records' counts added up, at most Int.MAX_VALUE. Restore checks only that each count is
+ * above 0, so a hand-edited backup can hold records whose Int sum wraps; a plan's count is an Int,
+ * so the cap changes no comparison with it.
+ */
+internal fun List<MedicationLogEntry>.recordedCount(): Int =
+    sumOf { entry -> entry.count.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 internal fun hasMatchingSlotRecord(
     group: MedicationGroup,
@@ -188,28 +222,4 @@ internal fun hasMatchingSlotRecord(
         .toSet()
 
     return requiredSignatures.any(loggedSignatures::contains)
-}
-
-internal fun isSlotFulfilledForMedication(
-    group: MedicationGroup,
-    slot: MedicationGroupSlotKey,
-    medication: MedicationGroupMedication,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    val signature = MedicationSignature.fromGroupMedication(medication)
-    val loggedCount = entries
-        .asSequence()
-        .filter { entry -> MedicationSignature.fromLogEntry(entry) == signature }
-        .filter { entry ->
-            isEntryFulfillingPlanSlot(
-                group = group,
-                slot = slot,
-                entry = entry,
-                zoneId = zoneId,
-            )
-        }
-        .sumOf { entry -> entry.count }
-
-    return loggedCount >= medication.count
 }

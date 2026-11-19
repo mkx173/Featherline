@@ -46,7 +46,7 @@ data class MedicationSignature(
             )
         }
 
-        private fun fromValues(
+        internal fun fromValues(
             medicineUuid: UUID?,
             applicationType: MedicationApplicationType,
             doseInstruction: DoseInstruction,

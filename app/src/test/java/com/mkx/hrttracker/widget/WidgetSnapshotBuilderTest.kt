@@ -84,6 +84,24 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
+    fun theRecord_isStampedWithTheHomeDataItWasBuiltFrom() {
+        // Without it the 15-minute worker finds every record not built from the current state,
+        // and rewrites the widget at every run.
+        val now = LocalDateTime.of(2026, 5, 20, 10, 0)
+        val homeData = homeSnapshotRecord(now = now, activeGroups = emptyList())
+            .copy(generatedAtEpochMillis = 1_747_540_123_456L)
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeData,
+            widgetEstimate = null,
+            settings = SettingsState(), now = now, zoneId = zoneId,
+        )
+
+        assertEquals(1_747_540_123_456L, snapshot.sourceGeneratedAtEpochMillis)
+    }
+
+    @Test
     fun eachPlanKeepsItsOwnDayEndingBeforeFourAm() {
         // 00:30: the night-owl plan's evening is still its today; the midnight plan has rolled over.
         val now = LocalDateTime.of(2026, 10, 29, 0, 30)
@@ -415,6 +433,39 @@ class WidgetSnapshotBuilderTest {
         val row = snapshot.doseRows.single { row -> row.contextChip == WidgetDoseChip.COMING_UP }
         assertEquals(now.toLocalDate().atTime(5, 0), row.scheduledAt)
         assertEquals("05:00", row.trailingText)
+    }
+
+    @Test
+    fun aRecordBuiltBeforeSix_isStaleFromSix_whenComingUpGainsTonightsOnlyDose() {
+        // A midnight-ending plan whose only dose is tomorrow at 00:30.
+        val beforeSix = LocalDateTime.of(2026, 10, 1, 17, 30)
+        val group = widgetTestGroup(
+            groupName = "Night",
+            medicationKey = MedicationKey.ESTRADIOL,
+            since = beforeSix.toLocalDate().plusDays(1),
+            time = LocalTime.of(0, 30),
+        )
+        fun buildAt(now: LocalDateTime) = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val built = buildAt(beforeSix)
+        assertTrue(built.doseRows.isEmpty())
+        // No row to turn stale: only the section start tells the worker to rebuild it.
+        assertFalse(built.isAnchoredBefore(beforeSix.withMinute(59)))
+        assertTrue(built.isAnchoredBefore(beforeSix.withHour(18).withMinute(0)))
+
+        val rebuilt = buildAt(beforeSix.withHour(18).withMinute(0))
+        assertEquals(
+            listOf(beforeSix.toLocalDate().plusDays(1).atTime(0, 30)),
+            rebuilt.doseRows.filter { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+                .map { row -> row.scheduledAt },
+        )
     }
 
     @Test

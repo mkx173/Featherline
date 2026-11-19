@@ -1,19 +1,21 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStoreFile
+import com.mkx.hrttracker.data.local.DATABASE_NAME
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -26,41 +28,111 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
+import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.util.appLanguageLocale
+import com.mkx.hrttracker.util.appLocales
+import com.mkx.hrttracker.util.setAppLocales
+import com.mkx.hrttracker.util.systemAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.dataStore by preferencesDataStore(
-    name = "settings",
-    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-)
+private const val SECURITY_SETTINGS_RETRY_DELAY_MILLIS = 1_000L
+private const val SETTINGS_READ_RETRY_DELAY_MILLIS = 1_000L
+private const val TAG = "SettingsRepository"
+
+private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
+private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
+private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+
+/**
+ * What a settings file that can't be parsed is replaced with. Over an existing database the
+ * replacement has Hide screen content on, and the app lock on when the phone can unlock it: the
+ * lock uses the phone's own credential, so turning it on loses nothing. On a phone with none it
+ * stays off, as Settings won't turn it on there; the user couldn't get in. Onboarding counts as
+ * done, so the user isn't walked through setup again over their data, and its first frame doesn't
+ * store reminders off. Everything else comes back as defaults.
+ */
+internal fun settingsCorruptionHandler(
+    databaseExists: () -> Boolean,
+    appLockCanAuthenticate: () -> Boolean,
+) = ReplaceFileCorruptionHandler {
+    if (databaseExists()) {
+        preferencesOf(
+            screenLockProtectionKey to appLockCanAuthenticate(),
+            hideScreenContentKey to true,
+            // ponytail: the database file exists from the first launch, so a corruption before
+            // onboarding first finished would skip its disclaimer too. It needs a parse failure
+            // of a file seconds old.
+            onboardingCompletedKey to true,
+        )
+    } else {
+        emptyPreferences()
+    }
+}
+
+// One store per process for the file, as preferencesDataStore's delegate keeps it; built here
+// because the corruption handler needs the Context to find the database.
+@Volatile
+private var settingsDataStore: DataStore<Preferences>? = null
+private val settingsDataStoreLock = Any()
+
+private val Context.dataStore: DataStore<Preferences>
+    get() = settingsDataStore ?: synchronized(settingsDataStoreLock) {
+        settingsDataStore ?: applicationContext.let { app ->
+            PreferenceDataStoreFactory.create(
+                corruptionHandler = settingsCorruptionHandler(
+                    databaseExists = { app.getDatabasePath(DATABASE_NAME).exists() },
+                    // The check App Lock and Settings use.
+                    appLockCanAuthenticate = {
+                        // A throw here would fail every start with the file still corrupt.
+                        runCatching { AppLockSecurityManager(app).availabilityErrorMessageRes() == null }
+                            .getOrDefault(false)
+                    },
+                ),
+                scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+                produceFile = { app.preferencesDataStoreFile("settings") },
+            )
+        }.also { settingsDataStore = it }
+    }
 
 @Singleton
 class SettingsRepository internal constructor(
     private val preferencesDataStore: DataStore<Preferences>,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(context.dataStore)
+    constructor(
+        @ApplicationContext context: Context,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    ) : this(context.dataStore, diagnosticsLogger)
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
@@ -75,13 +147,12 @@ class SettingsRepository internal constructor(
     private val hazeBlurKey = booleanPreferencesKey("haze_blur")
     private val classicNavigationBarKey = booleanPreferencesKey("classic_navigation_bar")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val reminderRepeatCountKey = intPreferencesKey("reminder_repeat_count")
+    private val reminderRepeatIntervalKey = intPreferencesKey("reminder_repeat_interval_minutes")
     private val healthConnectWeightSyncEnabledKey =
         booleanPreferencesKey("health_connect_weight_sync_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
-    private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
-    private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
-    private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val pkCalibrationIntroSeenKey = booleanPreferencesKey("pk_calibration_intro_seen")
     private val homeLowStockSectionExpandedKey =
         booleanPreferencesKey("home_low_stock_section_expanded")
@@ -99,21 +170,46 @@ class SettingsRepository internal constructor(
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
-    private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
+    // The language last shown: the chosen tags, or the phone's language mapped when following it.
+    // Only the next start reads it, to tell whether the language changed while the app was closed.
+    private val appLanguageTagKey = stringPreferencesKey("app_language_tag")
+
+    private data class AppLanguage(val shown: AppLanguageOption, val followsSystem: Boolean)
+
+    // appLocales() knows the choice with or without an activity, on every API level.
+    private val appLanguage = MutableStateFlow(
+        AppLanguage(
+            shown = AppLanguageOption.fromLocale(appLanguageLocale()),
+            followsSystem = appLocales().isEmpty,
+        )
+    )
+
+    /** The language shown. */
+    val shownAppLanguage: Flow<AppLanguageOption> = appLanguage.map { it.shown }
+
+    // From settingsState's first read, started at construction (Application.onCreate), before
+    // the activity's first refresh stores this run's language. A failed read is retried, so
+    // this waits for the first one that succeeds.
+    private val lastRunAppLanguageTagRead = CompletableDeferred<String?>()
+
+    // The language tag last stored in this process, which a read never overwrites.
+    @Volatile
+    private var requestedAppLanguageTag: String? = null
+    private val appLanguageStoreLock = Any()
 
     private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
-    // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
-    // down the upstream combine. SupervisorJob protects sibling jobs but not the
-    // inner pipeline, so a per-flow .catch is required.
+    // A failed read (an IOException: low memory, EBUSY during fsync) is retried, never shown as
+    // defaults: those would say onboarding isn't done and, through settingsState, which shares
+    // its first collection for the process, would stay on screen after the disk reads again.
     private val storedPreferences: Flow<Preferences> = flow {
         emitAll(activeDataStore().data)
-    }.catch { cause ->
-        if (cause is IOException) {
-            emit(emptyPreferences())
-        } else {
-            throw cause
-        }
+    }.retryWhen { cause, _ ->
+        if (cause !is IOException) return@retryWhen false
+        diagnosticsLogger.warning(TAG, "settings_read_failed_retrying", cause)
+        // ponytail: fixed delay, as securitySettingsState's
+        delay(SETTINGS_READ_RETRY_DELAY_MILLIS)
+        true
     }
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
@@ -176,21 +272,65 @@ class SettingsRepository internal constructor(
         .distinctUntilChanged()
 
     val settingsState: StateFlow<SettingsState> = combine(
-        storedPreferences.map(::preferencesToStoredSettingsState),
-        appLanguageOption
-    ) { storedSettingsState, currentAppLanguageOption ->
-        storedSettingsState.copy(appLanguageOption = currentAppLanguageOption)
+        storedPreferences.map { preferences ->
+            // Once read, the language this run starts in is stored for the next start, also in a
+            // process no activity attaches to: one an alarm woke after the language changed
+            // reposts once, not at every start until the app is opened.
+            if (lastRunAppLanguageTagRead.complete(preferences[appLanguageTagKey])) {
+                storeStartAppLanguage()
+            }
+            preferencesToStoredSettingsState(preferences)
+        },
+        appLanguage
+    ) { storedSettingsState, currentAppLanguage ->
+        storedSettingsState.withAppLanguage(currentAppLanguage)
     }
         .stateIn(
             scope = repositoryScope,
             started = SharingStarted.Eagerly,
-            initialValue = SettingsState(appLanguageOption = appLanguageOption.value)
+            initialValue = SettingsState().withAppLanguage(appLanguage.value)
         )
 
+    private fun SettingsState.withAppLanguage(language: AppLanguage) = copy(
+        appLanguageOption = language.shown,
+        appLanguageFollowsSystem = language.followsSystem,
+    )
+
+    // The lock and hide-content settings bypass [storedPreferences] and [settingsState]: the
+    // first only waits through a failed read, the second starts from defaults (lock off,
+    // content visible). Here a failed read is reported as Error, so the app lock can fail
+    // closed, and is retried. Cold: each collector runs its own reads.
+    val securitySettingsState: Flow<SecuritySettingsState> = activeDataStore().data
+        .map<Preferences, SecuritySettingsState> { preferences ->
+            val stored = preferencesToStoredSettingsState(preferences)
+            SecuritySettingsState.Loaded(
+                screenLockProtectionEnabled = stored.screenLockProtectionEnabled,
+                appLockGracePeriodOption = stored.appLockGracePeriodOption,
+                hideScreenContentEnabled = stored.hideScreenContentEnabled,
+            )
+        }
+        .retryWhen { cause, _ ->
+            if (cause !is IOException) return@retryWhen false
+            emit(SecuritySettingsState.Error)
+            // ponytail: fixed delay, add backoff if a persistently failing disk shows up in logs
+            delay(SECURITY_SETTINGS_RETRY_DELAY_MILLIS)
+            true
+        }
+
     suspend fun getCurrentSettings(): SettingsState {
-        return preferencesToStoredSettingsState(activeDataStore().data.first())
-            .copy(appLanguageOption = appLanguageOption.value)
+        val preferences = activeDataStore().data.first()
+        return preferencesToStoredSettingsState(preferences).withAppLanguage(appLanguage.value)
     }
+
+    /** The app language tag the last run stored, or null if none was; waits for a read to succeed. */
+    suspend fun lastRunAppLanguageTag(): String? = lastRunAppLanguageTagRead.await()
+
+    /**
+     * The app language for text posted outside an activity, mapped to a supported one as the
+     * screens show it (the application context's own may be another): the chosen one, or the
+     * phone's.
+     */
+    fun appLanguageTag(): String = appLanguageLocale().toLanguageTag()
 
     suspend fun setDarkModeOption(option: DarkModeOption) {
         activeDataStore().edit { preferences ->
@@ -333,6 +473,30 @@ class SettingsRepository internal constructor(
         }
     }
 
+    /**
+     * Turns reminders off unless [allowed] is true by the time this write runs. The check sits
+     * inside the write, so a grant's own setRemindersEnabled(true) is ordered with it: that write
+     * comes after this one, or this one sees the grant and leaves the switch alone.
+     */
+    suspend fun turnRemindersOffUnless(allowed: () -> Boolean): Boolean {
+        var turnedOff = false
+        activeDataStore().edit { preferences ->
+            if ((preferences[remindersEnabledKey] ?: true) && !allowed()) {
+                preferences[remindersEnabledKey] = false
+                turnedOff = true
+            }
+        }
+        return turnedOff
+    }
+
+    suspend fun setReminderRepeats(repeats: ReminderRepeats) {
+        require(repeats.isValid()) { "Unsupported reminder repeats: $repeats" }
+        activeDataStore().edit { preferences ->
+            preferences[reminderRepeatCountKey] = repeats.count
+            preferences[reminderRepeatIntervalKey] = repeats.intervalMinutes
+        }
+    }
+
     suspend fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[healthConnectWeightSyncEnabledKey] = enabled
@@ -449,10 +613,8 @@ class SettingsRepository internal constructor(
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
         hideReferenceRanges: Boolean,
-        appLockGracePeriodOption: AppLockGracePeriodOption,
-        hideScreenContentEnabled: Boolean,
         onboardingCompleted: Boolean,
-        appLanguageOption: AppLanguageOption,
+        appLanguageOption: AppLanguageOption?,
         calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
         homeE2DisplayUnit: AllowedAnalyteUnit,
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
@@ -464,8 +626,11 @@ class SettingsRepository internal constructor(
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
         pkCalibrationIntroSeen: Boolean = false,
-        healthConnectWeightSyncEnabled: Boolean = false,
+        // Null keeps the device's setting.
+        healthConnectWeightSyncEnabled: Boolean? = null,
         classicNavigationBarEnabled: Boolean = false,
+        // Null keeps the device's setting, as from a backup made before repeats.
+        reminderRepeats: ReminderRepeats? = null,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -478,11 +643,14 @@ class SettingsRepository internal constructor(
             preferences[hazeBlurKey] = hazeBlurEnabled
             preferences[classicNavigationBarKey] = classicNavigationBarEnabled
             preferences[remindersEnabledKey] = remindersEnabled
-            preferences[healthConnectWeightSyncEnabledKey] = healthConnectWeightSyncEnabled
+            healthConnectWeightSyncEnabled?.let { preferences[healthConnectWeightSyncEnabledKey] = it }
+            reminderRepeats?.let { repeats ->
+                preferences[reminderRepeatCountKey] = repeats.count
+                preferences[reminderRepeatIntervalKey] = repeats.intervalMinutes
+            }
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
-            preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
-            preferences[hideScreenContentKey] = hideScreenContentEnabled
+            // The lock, its grace period and hide screen content stay local: a backup can't loosen them.
             preferences[onboardingCompletedKey] = onboardingCompleted
             preferences[pkCalibrationIntroSeenKey] = pkCalibrationIntroSeen
 
@@ -527,22 +695,66 @@ class SettingsRepository internal constructor(
 
             preferences[homeCardOrderKey] = homeCardLayout.order.joinToString(",") { it.name }
             preferences[homeCardHiddenKey] = homeCardLayout.hidden.map { it.name }.toSet()
+            preferences[appLanguageTagKey] = (appLanguageOption ?: systemAppLanguage()).languageTag
         }
 
-        setAppLanguageOption(appLanguageOption)
+        // setApplicationLocales must be called on the main thread; restore runs on IO.
+        withContext(Dispatchers.Main) { setAppLanguageOption(appLanguageOption) }
     }
 
-    fun setAppLanguageOption(option: AppLanguageOption) {
-        appLanguageOption.value = option
-        val locale = Locale.forLanguageTag(option.languageTag)
+    /** Sets the app language, or with null clears it to follow the phone's. */
+    fun setAppLanguageOption(option: AppLanguageOption?) {
+        val shown = option ?: systemAppLanguage()
+        appLanguage.value = AppLanguage(shown, followsSystem = option == null)
         // Number formatters (e.g. medicationDoseText) read Locale.getDefault() directly,
-        // so syncing it here keeps formatted doses aligned with the chosen UI language.
-        Locale.setDefault(locale)
-        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
+        // so syncing it here keeps formatted doses aligned with the UI language.
+        Locale.setDefault(Locale.forLanguageTag(shown.languageTag))
+        setAppLocales(
+            option?.let { LocaleListCompat.forLanguageTags(it.languageTag) }
+                ?: LocaleListCompat.getEmptyLocaleList()
+        )
+        storeAppLanguage(shown.languageTag)
     }
 
+    /**
+     * Reads the app language back ([appLocales]): an empty list follows the system, whichever
+     * screen emptied it (the picker, or "System default" in Android's per-app setting).
+     */
     fun refreshAppLanguageOption() {
-        appLanguageOption.value = AppLanguageOption.fromLocale(appLanguageLocale())
+        val chosen = appLocales()
+            .takeUnless(LocaleListCompat::isEmpty)?.toLanguageTags()
+        val shown = AppLanguageOption.fromLocale(appLanguageLocale())
+        appLanguage.value = AppLanguage(shown, followsSystem = chosen == null)
+        // Also stores one chosen before the tag was kept or in Android's setting, and when
+        // following the system the language it resolves to, which the next start compares with.
+        storeAppLanguage(chosen ?: shown.languageTag)
+    }
+
+    // Unless this run has stored one already. Only stores: run off the main thread, a read here
+    // could overwrite the language a picker tap set meanwhile.
+    private fun storeStartAppLanguage() = synchronized(appLanguageStoreLock) {
+        if (requestedAppLanguageTag == null) storeAppLanguage(appLanguage.value.shown.languageTag)
+    }
+
+    private fun storeAppLanguage(tag: String) {
+        synchronized(appLanguageStoreLock) { requestedAppLanguageTag = tag }
+        repositoryScope.launch {
+            try {
+                // Not before the last run's tag is read: settingsState's first read may come
+                // after this write, and would then take this run's tag for the last one.
+                lastRunAppLanguageTagRead.await()
+                // The latest one asked for, not this call's: of quick changes, the write that
+                // runs last stores the last one. DataStore skips a write that changes nothing.
+                activeDataStore().edit { preferences ->
+                    requestedAppLanguageTag?.let { latest -> preferences[appLanguageTagKey] = latest }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                // Read back only by the next start; the next change or app start writes it.
+                diagnosticsLogger.warning(TAG, "app_language_tag_store_failed tag=$tag", error)
+            }
+        }
     }
 
     private fun preferencesToStoredSettingsState(preferences: Preferences): SettingsState {
@@ -562,6 +774,11 @@ class SettingsRepository internal constructor(
             homeE2ChartWindowOption = HomeE2ChartWindowOption
                 .fromStorageValue(preferences[homeE2ChartWindowKey]),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
+            reminderRepeats = ReminderRepeats(
+                count = preferences[reminderRepeatCountKey] ?: ReminderRepeats.DEFAULT_COUNT,
+                intervalMinutes = preferences[reminderRepeatIntervalKey]
+                    ?: ReminderRepeats.DEFAULT_INTERVAL_MINUTES,
+            ).withShortIntervalRaised().takeIf(ReminderRepeats::isValid) ?: ReminderRepeats(),
             healthConnectWeightSyncEnabled = preferences[healthConnectWeightSyncEnabledKey] ?: false,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,
@@ -625,10 +842,6 @@ class SettingsRepository internal constructor(
             ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit) }
             ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)
         return AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit)
-    }
-
-    private fun resolveCurrentAppLanguage(): AppLanguageOption {
-        return AppLanguageOption.fromLocale(appLanguageLocale())
     }
 }
 

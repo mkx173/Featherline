@@ -16,6 +16,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.UUID
 
 internal suspend fun saveManualMedicineLog(
@@ -30,11 +32,14 @@ internal suspend fun saveManualMedicineLog(
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId,
+    // Which pass of a repeated fall-back hour the date and time mean.
+    appliedOffset: ZoneOffset?,
 ): ManualMedicineLogSaveOutcome {
-    val appliedAt = LocalDateTime.of(
-        appliedDate,
-        appliedTime.withSecond(0).withNano(0),
-    ).atZone(appliedZoneId).toInstant()
+    val appliedAt = ZonedDateTime.ofLocal(
+        LocalDateTime.of(appliedDate, appliedTime.withSecond(0).withNano(0)),
+        appliedZoneId,
+        appliedOffset,
+    ).toInstant()
     val resolvedDose = if (resolvedApplicationType == MedicationApplicationType.PATCH_OFF) {
         DoseInstruction.Noop
     } else {

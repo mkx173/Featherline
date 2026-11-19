@@ -47,14 +47,12 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.reminder.ReminderNotificationManager
+import com.mkx.hrttracker.model.settings.ReminderRepeats
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -62,6 +60,7 @@ import com.mkx.hrttracker.widget.legacyWidgetAppearance
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -82,6 +81,20 @@ class IncompatibleBackupFileException(
     cause: Throwable? = null,
 ) : IOException(message, cause)
 
+/** The password is wrong, or the encrypted payload is damaged: authentication failed. */
+class BackupDecryptionException(message: String, cause: Throwable) : IOException(message, cause)
+
+/** Written by a newer version of the app, with a format this one doesn't know yet. */
+class NewerBackupVersionException(message: String) : IOException(message)
+
+/** How a restore that replaced the data went; one that didn't throws instead. */
+enum class BackupRestoreOutcome {
+    RESTORED,
+
+    /** The data is restored, but a setting, the widget appearance or a reminder step failed. */
+    FOLLOW_UP_FAILED,
+}
+
 @Singleton
 class BackupRestoreService @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -89,8 +102,7 @@ class BackupRestoreService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
-    private val reminderNotificationManager: ReminderNotificationManager,
+    private val reminderCapabilityReconciler: ReminderCapabilityReconciler,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
@@ -151,44 +163,25 @@ class BackupRestoreService @Inject constructor(
         }
     }
 
-    suspend fun validateBackupFile(
-        fileUri: Uri,
-    ) = withContext(Dispatchers.IO) {
-        val encryptedBytes = readEncryptedBackupBytes(fileUri)
-        try {
-            validateBackupBytes(encryptedBytes)
-        } finally {
-            encryptedBytes.fill(0)
-        }
-    }
-
-    suspend fun restoreBackup(
-        fileUri: Uri,
-        password: String,
-    ) = withContext(Dispatchers.IO) {
-        val encryptedBytes = readEncryptedBackupBytes(fileUri)
-        try {
-            restoreBackupBytes(encryptedBytes, password)
-        } finally {
-            encryptedBytes.fill(0)
-        }
-    }
-
     suspend fun restoreBackupBytes(
         encryptedBytes: ByteArray,
         password: String,
-    ) = withContext(Dispatchers.IO) {
+    ): BackupRestoreOutcome = withContext(Dispatchers.IO) {
         diagnosticsLogger.info(
             TAG,
             "restore_backup_start bytes=${encryptedBytes.size} " +
                     "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
         )
         val passwordChars = password.toCharArray()
+        // Nothing is written until the mutation below, so running out of heap before it
+        // only fails this restore; decryption and decoding hold the most memory.
         val json = try {
             backupCrypto.decryptSnapshotJson(
                 encryptedBytes = encryptedBytes,
                 password = passwordChars,
             )
+        } catch (error: OutOfMemoryError) {
+            throw tooLargeForTheHeap("restore_backup_decrypt", error)
         } finally {
             passwordChars.fill(' ')
         }
@@ -205,7 +198,10 @@ class BackupRestoreService @Inject constructor(
                 TAG,
                 "restore_backup_decrypted snapshotVersion=$snapshotVersion",
             )
-            require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
+            if (snapshotVersion > CURRENT_BACKUP_SNAPSHOT_VERSION) {
+                throw NewerBackupVersionException("Backup snapshot version $snapshotVersion is newer.")
+            }
+            require(snapshotVersion >= MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION) {
                 "Unsupported backup snapshot version: $snapshotVersion."
             }
             val snapshot = BackupSnapshotJsonCodec.decode(json)
@@ -222,167 +218,201 @@ class BackupRestoreService @Inject constructor(
                 error,
             )
             throw error
+        } catch (error: OutOfMemoryError) {
+            throw tooLargeForTheHeap("restore_backup_decode", error)
         }
 
-        // Any visible dose-reminder notification references slot UUIDs from the
-        // pre-restore database. Tap-actions afterward dispatch with stale state, so
-        // dismiss them up-front before the database mutation begins.
-        reminderNotificationManager.cancelAllDoseReminderNotifications()
-
+        // Reminders on screen stay for rescheduleAll below to reconcile with the
+        // restored data: one still due stays, the rest go or are refreshed.
+        // Past the commit the data is restored, so a failure from there on is a
+        // failed follow-up, not a failed restore.
+        var followUpFailed = false
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.runTransaction { database ->
-                // Delete order: logs and group items (children) before medicines
-                // (parents) so the medicines table can be wiped without
-                // tripping the RESTRICT foreign-key constraint.
-                database.medicationLogDao().deleteAllEntries()
-                database.medicationGroupDao().deleteAllGroups()
-                database.medicineDao().deleteAll()
-                // Review metadata is durable user data restored below.
-                database.pkCalibrationDao().deleteAllMetadata()
-                database.bloodTestDao().deleteAllResults()
-                database.bloodTestDao().deleteAllPanels()
-                database.bloodTestDao().deleteAllCustomAnalytes()
-                database.userProfileDao().deleteProfile()
-                database.journalDao().deleteAllNotes()
-                database.journalDao().deleteAllTrackedDates()
+            // Startup reconciles if the process dies before rescheduleAll does. Null when the
+            // mark can't be stored, and the restore goes ahead: a cold start runs a full pass anyway.
+            // The gate is NonCancellable, so a CancellationException is the store's own failure too.
+            val reconcileMark = try {
+                medicationReminderScheduler.markReconcilePending()
+            } catch (error: Exception) {
+                diagnosticsLogger.warning(TAG, "restore_reconcile_mark_failed", error)
+                null
+            }
+            try {
+                databaseHolder.runTransaction { database ->
+                    // Delete order: logs and group items (children) before medicines
+                    // (parents) so the medicines table can be wiped without
+                    // tripping the RESTRICT foreign-key constraint.
+                    database.medicationLogDao().deleteAllEntries()
+                    database.medicationGroupDao().deleteAllGroups()
+                    database.medicineDao().deleteAll()
+                    // Review metadata is durable user data restored below.
+                    database.pkCalibrationDao().deleteAllMetadata()
+                    database.bloodTestDao().deleteAllResults()
+                    database.bloodTestDao().deleteAllPanels()
+                    database.bloodTestDao().deleteAllCustomAnalytes()
+                    database.userProfileDao().deleteProfile()
+                    database.journalDao().deleteAllNotes()
+                    database.journalDao().deleteAllTrackedDates()
 
-                if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
-                    database.bloodTestDao()
-                        .insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
+                    if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
+                        database.bloodTestDao()
+                            .insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
+                    }
+                    if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
+                        database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
+                    }
+                    if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
+                        database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
+                    }
+                    if (validatedSnapshot.e2CalibrationMetadata.isNotEmpty()) {
+                        database.pkCalibrationDao()
+                            .insertMetadata(validatedSnapshot.e2CalibrationMetadata)
+                    }
+                    // Medicines must be written before any group item or log that
+                    // references them; RESTRICT foreign keys would otherwise
+                    // reject the insert. The validator already proved that every
+                    // referenced medicineUuid is present in this list.
+                    if (validatedSnapshot.medicines.isNotEmpty()) {
+                        database.medicineDao().insertAll(validatedSnapshot.medicines)
+                    }
+                    if (validatedSnapshot.medicationGroups.isNotEmpty()) {
+                        database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
+                    }
+                    if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertItems(validatedSnapshot.medicationGroupItems)
+                    }
+                    if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
+                    }
+                    if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
+                    }
+                    if (validatedSnapshot.medicationLogs.isNotEmpty()) {
+                        database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
+                    }
+                    if (validatedSnapshot.trackedDates.isNotEmpty()) {
+                        database.journalDao().insertTrackedDates(validatedSnapshot.trackedDates)
+                    }
+                    if (validatedSnapshot.notes.isNotEmpty()) {
+                        database.journalDao().insertNotes(validatedSnapshot.notes)
+                    }
+                    database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
                 }
-                if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
-                    database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
+
+                // Inside the mutation so its rebuild reads the restored chart
+                // window option; nothing else rebuilds on an option write.
+                try {
+                    settingsRepository.restoreSettings(
+                        darkModeOption = validatedSnapshot.settings.darkModeOption,
+                        adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
+                        pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
+                        hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
+                        classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
+                        remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                        reminderRepeats = validatedSnapshot.settings.reminderRepeats,
+                        healthConnectWeightSyncEnabled =
+                            validatedSnapshot.settings.healthConnectWeightSyncEnabled,
+                        showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
+                        hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
+                        onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
+                        pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
+                        appLanguageOption = validatedSnapshot.settings.appLanguageOption,
+                        calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
+                        homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
+                        homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
+                        lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
+                        hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
+                        groupNameCounter = validatedSnapshot.settings.groupNameCounter,
+                        firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+                        stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
+                        stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
+                        homeCardLayout = validatedSnapshot.settings.homeCardLayout,
+                    )
+                } catch (error: Throwable) {
+                    // The gate is NonCancellable, so a CancellationException is the write's
+                    // own failure; rethrown, it would skip the follow-ups and report nothing.
+                    followUpFailed = true
+                    diagnosticsLogger.warning(TAG, "restore_settings_apply_failed", error)
                 }
-                if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
-                    database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
-                }
-                if (validatedSnapshot.e2CalibrationMetadata.isNotEmpty()) {
-                    database.pkCalibrationDao()
-                        .insertMetadata(validatedSnapshot.e2CalibrationMetadata)
-                }
-                // Medicines must be written before any group item or log that
-                // references them; RESTRICT foreign keys would otherwise
-                // reject the insert. The validator already proved that every
-                // referenced medicineUuid is present in this list.
-                if (validatedSnapshot.medicines.isNotEmpty()) {
-                    database.medicineDao().insertAll(validatedSnapshot.medicines)
-                }
-                if (validatedSnapshot.medicationGroups.isNotEmpty()) {
-                    database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
-                }
-                if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertItems(validatedSnapshot.medicationGroupItems)
-                }
-                if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
-                }
-                if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
-                }
-                if (validatedSnapshot.medicationLogs.isNotEmpty()) {
-                    database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
-                }
-                if (validatedSnapshot.trackedDates.isNotEmpty()) {
-                    database.journalDao().insertTrackedDates(validatedSnapshot.trackedDates)
-                }
-                if (validatedSnapshot.notes.isNotEmpty()) {
-                    database.journalDao().insertNotes(validatedSnapshot.notes)
-                }
-                database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
+            } finally {
+                // Committed or rolled back, before rescheduleAll below, so it may settle the mark.
+                reconcileMark?.committed()
+            }
+        }
+
+        // Past the commit, a cancel (the restore runs on viewModelScope) must not skip
+        // these: restored plans would get no alarms until the next cold start. So a CancellationException in here is a step's own failure, not
+        // the caller's, and is caught like any other; rethrown, it would skip the rest.
+        withContext(NonCancellable) {
+            // Restore REPLACES the default appearance wholesale, including hue, saturation
+            // and balance from the backup (or Defaults via the legacy mirror for
+            // pre-customization backups). appWidgetIds are not stable across devices,
+            // so only the default entry travels in the backup.
+            //
+            // Validation already hard-failed any malformed appearance payload before
+            // the commit above; only the DataStore IO apply here is best-effort, so a
+            // write failure must not sink an otherwise-successful restore.
+            try {
+                widgetAppearanceRepository.setDefault(
+                    validatedSnapshot.settings.widgetAppearance
+                        ?: legacyWidgetAppearance(
+                            contentScale = validatedSnapshot.settings.widgetContentScale,
+                            backgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
+                            darkMode = validatedSnapshot.settings.widgetDarkModeOption,
+                        )
+                )
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_widget_appearance_apply_failed",
+                    error,
+                )
             }
 
-            // Inside the mutation so its rebuild reads the restored chart
-            // window option; nothing else rebuilds on an option write.
-            settingsRepository.restoreSettings(
-                darkModeOption = validatedSnapshot.settings.darkModeOption,
-                adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
-                pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
-                hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
-                classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
-                remindersEnabled = validatedSnapshot.settings.remindersEnabled,
-                healthConnectWeightSyncEnabled =
-                    validatedSnapshot.settings.healthConnectWeightSyncEnabled,
-                showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
-                hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
-                appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
-                hideScreenContentEnabled = validatedSnapshot.settings.hideScreenContentEnabled,
-                onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
-                pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
-                appLanguageOption = validatedSnapshot.settings.appLanguageOption,
-                calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
-                homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
-                homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
-                lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
-                hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
-                groupNameCounter = validatedSnapshot.settings.groupNameCounter,
-                firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
-                stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
-                stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
-                homeCardLayout = validatedSnapshot.settings.homeCardLayout,
-            )
+            // Skips were of this phone's doses; before the pass, so it arms a restored dose's
+            // remaining alerts. Lost to a death before it, a skip only keeps a dose quiet.
+            try {
+                medicationReminderScheduler.clearSkips()
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_skip_clear_failed",
+                    error,
+                )
+            }
+            // Reminder rescheduling is a best-effort side effect — the data is
+            // already committed. Surfacing a failure here as a generic
+            // exception caused "restore failed" toasts even when the user's
+            // data had been restored successfully. The reconcile marked above
+            // stays pending, so startup runs it on the next app launch.
+            // Through the capability reconcile: a restored switch on, on a phone without
+            // notification access, is turned off (B11). And every reminder on screen is
+            // reposted, so none keeps the old language or Hide medication details (B3).
+            try {
+                reminderCapabilityReconciler.reconcile(
+                    reason = "backup_restore",
+                    forceReschedule = true,
+                    repostShown = true,
+                )
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_reminder_reschedule_failed",
+                    error,
+                )
+            }
+            // The app is already in the foreground, so a restored sync flag would
+            // otherwise wait for the next onStart. Fire-and-forget; it never throws.
+            // The restored weight must give way to HC's, however recent the last sync.
+            healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
         }
-
-        // Restore REPLACES the default appearance wholesale, including hue, saturation
-        // and balance from the backup (or Defaults via the legacy mirror for
-        // pre-customization backups). appWidgetIds are not stable across devices,
-        // so only the default entry travels in the backup.
-        //
-        // Validation already hard-failed any malformed appearance payload before
-        // the commit above; only the DataStore IO apply here is best-effort, so a
-        // write failure must not sink an otherwise-successful restore.
-        try {
-            widgetAppearanceRepository.setDefault(
-                validatedSnapshot.settings.widgetAppearance
-                    ?: legacyWidgetAppearance(
-                        contentScale = validatedSnapshot.settings.widgetContentScale,
-                        backgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
-                        darkMode = validatedSnapshot.settings.widgetDarkModeOption,
-                    )
-            )
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_widget_appearance_apply_failed",
-                error,
-            )
-        }
-
-        // Reminder rescheduling is a best-effort side effect — the data is
-        // already committed. Surfacing a failure here as a generic
-        // exception caused "restore failed" toasts even when the user's
-        // data had been restored successfully. The alarm scheduler will
-        // reconcile on the next app launch.
-        try {
-            medicationReminderScheduler.rescheduleAll()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_reminder_reschedule_failed",
-                error,
-            )
-        }
-        try {
-            medicationReminderSnoozeScheduler.clearAllSnoozes()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_snooze_clear_failed",
-                error,
-            )
-        }
-        // The app is already in the foreground, so a restored sync flag would
-        // otherwise wait for the next onStart. Fire-and-forget; it never throws.
-        // The restored weight must give way to HC's, however recent the last sync.
-        healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+        if (followUpFailed) BackupRestoreOutcome.FOLLOW_UP_FAILED else BackupRestoreOutcome.RESTORED
     }
 
     private companion object {
@@ -406,38 +436,70 @@ class BackupRestoreService @Inject constructor(
         // Bound the read: a mis-selected or hostile file (e.g. a multi-gigabyte
         // video) would otherwise be pulled fully into memory by readBytes()
         // before any structural size limit applies, OOMing the restore.
-        return context.contentResolver.openInputStream(fileUri)
-            ?.use { inputStream -> readBoundedBytes(inputStream, MAX_ENCRYPTED_BACKUP_BYTES) }
-            ?: throw IOException("Unable to open the selected backup file.")
+        return try {
+            context.contentResolver.openInputStream(fileUri)
+                ?.use { inputStream ->
+                    readBoundedBytes(
+                        inputStream = inputStream,
+                        maxBytes = MAX_ENCRYPTED_BACKUP_BYTES,
+                        requiredPrefix = BackupCrypto.MAGIC_BYTES,
+                    )
+                }
+                ?: throw IOException("Unable to open the selected backup file.")
+        } catch (error: OutOfMemoryError) {
+            // The cap bounds the file, not the heap: the buffer grows by doubling and is
+            // copied once more at the end. ponytail: validation isn't caught; it copies
+            // less than this read held.
+            throw tooLargeForTheHeap("load_backup", error)
+        }
+    }
+
+    // The buffers that ran out are garbage once the error unwinds, so the app carries on.
+    // A plain IOException: the file may be fine, this device just can't hold it.
+    private fun tooLargeForTheHeap(
+        step: String,
+        error: OutOfMemoryError,
+    ): IOException {
+        diagnosticsLogger.warning(TAG, "${step}_out_of_memory", error)
+        return IOException("Selected backup file is too large to restore on this device.", error)
     }
 }
 
 /**
  * Reads [inputStream] fully but rejects input larger than [maxBytes] without
  * first buffering the whole stream, so an oversized selection cannot exhaust
- * memory before the size limit applies.
+ * memory before the size limit applies. Input that doesn't start with
+ * [requiredPrefix] is rejected after reading only that many bytes, so a file of
+ * another kind isn't buffered at all.
  *
- * Throws [IncompatibleBackupFileException] (not a plain [IOException]) on
- * over-cap input so the picker — which runs this before the password prompt —
- * surfaces the accurate "not a compatible backup" message rather than the
- * generic "wrong password or corrupted" toast for a file no password was ever
- * entered against.
+ * Throws [IncompatibleBackupFileException] for input that isn't a backup, and a
+ * plain [IOException] for one over the cap, which the app can't restore.
  */
 internal fun readBoundedBytes(
     inputStream: InputStream,
     maxBytes: Long,
+    requiredPrefix: ByteArray = ByteArray(0),
 ): ByteArray {
+    val prefix = ByteArray(requiredPrefix.size)
+    var prefixLength = 0
+    while (prefixLength < prefix.size) {
+        val bytesRead = inputStream.read(prefix, prefixLength, prefix.size - prefixLength)
+        if (bytesRead == -1) break
+        prefixLength += bytesRead
+    }
+    if (!prefix.contentEquals(requiredPrefix)) {
+        throw IncompatibleBackupFileException("Selected file is not a backup.")
+    }
     val buffer = ByteArrayOutputStream()
+    buffer.write(prefix)
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
-    var total = 0L
+    var total = prefix.size.toLong()
     while (true) {
         val bytesRead = inputStream.read(chunk)
         if (bytesRead == -1) break
         total += bytesRead
         if (total > maxBytes) {
-            throw IncompatibleBackupFileException(
-                "Selected backup file exceeds the maximum supported size."
-            )
+            throw IOException("Selected backup file exceeds the maximum supported size.")
         }
         buffer.write(chunk, 0, bytesRead)
     }
@@ -553,7 +615,11 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         require(group.schedule.interval > 0) {
             "Medication group ${group.uuid} must have a positive schedule interval."
         }
-        LocalDate.ofEpochDay(group.schedule.sinceEpochDay)
+        // The start date picker offers 1900 to 2100, and every other writer takes today (the
+        // device clock) or an existing start.
+        require(group.schedule.sinceEpochDay in BackupDates.start.toEpochDay()..BackupDates.endInclusive.toEpochDay()) {
+            "Medication group ${group.uuid} has an impossible start date."
+        }
         require(group.schedule.times.isNotEmpty()) {
             "Medication group ${group.uuid} must contain at least one schedule time."
         }
@@ -571,14 +637,12 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         weeklyDays.forEach { dayOfWeek ->
             DayOfWeek.of(dayOfWeek)
         }
-        val archivedAtLocalIso = group.archivedAtLocalIso?.let { archivedAtLocal ->
-            LocalDateTime.parse(archivedAtLocal).toString()
-        } ?: group.archivedAtEpochMillis?.let { archivedAtEpochMillis ->
-            Instant.ofEpochMilli(archivedAtEpochMillis)
-                .atZone(zoneId)
-                .toLocalDateTime()
-                .toString()
-        }
+        val archivedAtLocalIso = (
+            group.archivedAtLocalIso?.let(LocalDateTime::parse)
+                ?: group.archivedAtEpochMillis?.let { archivedAtEpochMillis ->
+                    Instant.ofEpochMilli(archivedAtEpochMillis).atZone(zoneId).toLocalDateTime()
+                }
+            )?.requireBackupDate("medication group ${group.uuid} archive time")?.toString()
         val replacedByGroupUuid = group.replacedByGroupUuid
             ?.parseUuid("medication group replaced-by UUID")
             ?.toString()
@@ -611,16 +675,18 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             require(seenScheduleTimeUuids.add(scheduleTimeUuid)) {
                 "Duplicate medication group schedule time UUID $scheduleTimeUuid in backup."
             }
-            val effectiveFromLocalIso = time.effectiveFromLocalIso?.let { effectiveFrom ->
-                LocalDateTime.parse(effectiveFrom).toString()
-            } ?: if (group.includePastScheduledSlots) {
-                LocalDate.ofEpochDay(group.schedule.sinceEpochDay).atStartOfDay().toString()
-            } else {
-                Instant.ofEpochMilli(group.createdAtEpochMillis)
-                    .atZone(zoneId)
-                    .toLocalDateTime()
-                    .toString()
+            // An impossible time fails every read of the plan, so Home never loads.
+            require(time.hourOfDay in 0..23 && time.minuteOfHour in 0..59) {
+                "Medication group ${group.uuid} has an impossible dose time."
             }
+            val effectiveFromLocalIso = (
+                time.effectiveFromLocalIso?.let(LocalDateTime::parse)
+                    ?: if (group.includePastScheduledSlots) {
+                        LocalDate.ofEpochDay(group.schedule.sinceEpochDay).atStartOfDay()
+                    } else {
+                        Instant.ofEpochMilli(group.createdAtEpochMillis).atZone(zoneId).toLocalDateTime()
+                    }
+                ).requireBackupDate("medication group ${group.uuid} slot start").toString()
             MedicationGroupScheduleTimeEntity(
                 uuid = scheduleTimeUuid,
                 groupUuid = groupUuid,
@@ -636,6 +702,9 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 dayOfWeek = DayOfWeek.of(dayOfWeek).value,
             )
         }
+        // Rows of one signature (MedicationSignature) add up to one dose; past Int.MAX the sum
+        // wraps, and Home throws while Plan, Batch Add and the reminder pass never return.
+        val countTotalsBySignature = mutableMapOf<List<Any?>, Long>()
         group.medications.forEachIndexed { index, medication ->
             val itemUuid = medication.uuid.parseUuid("medication group item UUID").toString()
             require(seenGroupItemUuids.add(itemUuid)) {
@@ -648,6 +717,26 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 fieldPrefix = "medication group item ${medication.uuid}",
                 medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
             )
+            val signatureKey = if (validatedMedication.applicationType == MedicationApplicationType.PATCH_OFF) {
+                listOf(MedicationApplicationType.PATCH_OFF)
+            } else {
+                with(validatedMedication) {
+                    listOf(
+                        medicineUuid,
+                        applicationType,
+                        doseInstructionKind,
+                        tabletFractionNumerator,
+                        tabletFractionDenominator,
+                        doseVolumeMl,
+                        doseWeightGrams,
+                    )
+                }
+            }
+            val countTotal = countTotalsBySignature.getOrDefault(signatureKey, 0L) + medication.count
+            require(countTotal <= Int.MAX_VALUE) {
+                "Medication group ${group.uuid} has a dose count past ${Int.MAX_VALUE}."
+            }
+            countTotalsBySignature[signatureKey] = countTotal
             if (validatedMedication.medicineUuid != null) {
                 val referenced = medicineEntitiesByUuid[validatedMedication.medicineUuid]
                 require(referenced?.importedFromExternalTracker != true) {
@@ -687,9 +776,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         }
     }
 
-    val groupEntitiesWithLineage = groupEntities.withDerivedRecreatedFromGroupUuids()
-    val validGroupUuids =
-        groupEntitiesWithLineage.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
+    val validGroupUuids = groupEntities.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
     val scheduleTimeGroupByUuid = groupScheduleTimeEntities.associate { scheduleTime ->
         scheduleTime.uuid to scheduleTime.groupUuid
     }
@@ -739,7 +826,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             }
         }
         val scheduledForIso = log.scheduledForIso?.let { value ->
-            LocalDateTime.parse(value)
+            LocalDateTime.parse(value).requireBackupDate("medication log ${log.uuid} dose time")
             value
         }
         val scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
@@ -927,7 +1014,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         settings = validatedSettings,
         userProfile = validatedUserProfile,
         medicines = medicineEntities,
-        medicationGroups = groupEntitiesWithLineage,
+        medicationGroups = groupEntities,
         medicationGroupItems = groupItemEntities,
         medicationGroupScheduleTimes = groupScheduleTimeEntities,
         medicationGroupWeeklyDays = groupWeeklyDayEntities,
@@ -976,25 +1063,22 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     )
 }
 
-private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): List<MedicationGroupEntity> {
-    val sourceUuidBySuccessorUuid = mutableMapOf<String, String>()
-    forEach { group ->
-        val successorUuid = group.replacedByGroupUuid ?: return@forEach
-        if (successorUuid !in sourceUuidBySuccessorUuid) {
-            sourceUuidBySuccessorUuid[successorUuid] = group.uuid
-        }
-    }
-    return map { group ->
-        val derivedSourceUuid = sourceUuidBySuccessorUuid[group.uuid]
-        if (group.recreatedFromGroupUuid == null && derivedSourceUuid != null) {
-            group.copy(recreatedFromGroupUuid = derivedSourceUuid)
-        } else {
-            group
-        }
-    }
-}
-
 private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
+
+/**
+ * Years 0001 to 9999, for the plan dates the reminder pass and the unbounded dose lists step
+ * from (start, slot start, archive time), where one far beyond them stops every reminder or
+ * crashes Home at each launch, and for a dose's slot time and note and anchor dates, which are
+ * read as instants. No writer puts these outside them: the date pickers offer 1900 to 2100,
+ * other dates are the clock or an existing one, and a slot time is one of the plan's doses.
+ * A dose's and a lab's own time are not bounded: an import by an older build can have stored
+ * one far out, and the app must restore its own backups.
+ */
+private val BackupDates = LocalDate.of(1, 1, 1)..LocalDate.of(9999, 12, 31)
+
+private fun LocalDateTime.requireBackupDate(fieldName: String): LocalDateTime = also {
+    require(toLocalDate() in BackupDates) { "Impossible $fieldName $this in backup." }
+}
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
     val darkModeOption = requireEnumName<DarkModeOption>(
@@ -1005,17 +1089,13 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetDarkModeOption,
         "widget dark mode option",
     )
-    val appLockGracePeriodOption = requireEnumName<AppLockGracePeriodOption>(
-        appLockGracePeriodOption,
-        "app lock grace period option",
-    )
-    // Language names from other app versions (the retired FOLLOW_SYSTEM value, or
-    // options added in later releases) fall back to the system-default language
-    // instead of rejecting the whole backup: a stale language choice is harmless,
-    // the medical data behind it is not.
+    // The grace period and hide screen content stay local, so they aren't validated: a grace
+    // option from a newer version doesn't reject the backup.
+    // Null follows the system: FOLLOW_SYSTEM_APP_LANGUAGE, and a name from another version (a
+    // language added in a later release) instead of rejecting the whole backup: a stale language
+    // choice is harmless, the medical data behind it is not.
     val appLanguageOption = enumValues<AppLanguageOption>()
         .firstOrNull { entry -> entry.name == appLanguageOption }
-        ?: AppLanguageOption.fromLocale(systemLocale())
     val firstDayOfWeekOption = requireEnumName<FirstDayOfWeekOption>(
         firstDayOfWeekOption,
         "first day of week option",
@@ -1044,6 +1124,20 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
     }
 
     val homeCardLayout = HomeCardLayout.decode(homeCardOrder, homeCardHidden)
+    // Both or neither: a backup from before repeats has neither, and keeps the device's.
+    val reminderRepeats = if (reminderRepeatCount == null && reminderRepeatIntervalMinutes == null) {
+        null
+    } else {
+        ReminderRepeats(
+            count = requireNotNull(reminderRepeatCount) { "Reminder repeat count is missing." },
+            intervalMinutes = requireNotNull(reminderRepeatIntervalMinutes) {
+                "Reminder repeat interval is missing."
+            },
+        )
+            // An interval under 15, from an earlier build, as 15: harmless, as a stale language is.
+            .withShortIntervalRaised()
+            .also { repeats -> require(repeats.isValid()) { "Unsupported reminder repeats $repeats." } }
+    }
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -1052,11 +1146,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         hazeBlurEnabled = hazeBlurEnabled,
         classicNavigationBarEnabled = classicNavigationBarEnabled,
         remindersEnabled = remindersEnabled,
+        reminderRepeats = reminderRepeats,
         healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
-        appLockGracePeriodOption = appLockGracePeriodOption,
-        hideScreenContentEnabled = hideScreenContentEnabled,
         onboardingCompleted = onboardingCompleted,
         pkCalibrationIntroSeen = pkCalibrationIntroSeen,
         appLanguageOption = appLanguageOption,
@@ -1146,9 +1239,6 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
         "Tracked date name must not be blank."
     }
     val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
-    }
     // pinnedOrder is appended as max+1 (>= 0) on the write path; a negative value
     // would sort ahead of every legitimate pin and silently steal the hero slot.
     require(pinnedOrder == null || pinnedOrder >= 0) {
@@ -1167,7 +1257,8 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
         heroBackgroundKey = heroBackgroundKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
+        // Raised like a medicine's; see BackupMedicineSnapshot.toValidatedEntity.
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
     )
 }
 
@@ -1180,15 +1271,13 @@ private fun BackupNoteSnapshot.toValidatedEntity(): NoteEntity {
     require(normalizedText.isNotEmpty()) {
         "Note $noteUuid text must not be blank."
     }
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Note $noteUuid updatedAt must not be before createdAt."
-    }
     return NoteEntity(
         uuid = noteUuid,
         dateIso = normalizedDateIso,
         text = normalizedText,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
+        // Raised like a medicine's; see BackupMedicineSnapshot.toValidatedEntity.
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
     )
 }
 
@@ -1351,14 +1440,9 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     require(createdAtEpochMillis >= 0) {
         "Medicine $uuid createdAt must not be negative."
     }
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Medicine $uuid updatedAt $updatedAtEpochMillis predates createdAt $createdAtEpochMillis."
-    }
-    if (archivedAtEpochMillis != null) {
-        require(archivedAtEpochMillis >= createdAtEpochMillis) {
-            "Medicine $uuid archivedAt predates createdAt."
-        }
-    }
+    // A row edited or archived after the wall clock was set back has updatedAt or archivedAt
+    // before createdAt. The app writes such rows itself, so restore raises them to createdAt
+    // instead of refusing every later backup. Nothing reads the order of the three.
 
     // Heal legacy/degenerate stock rows on restore so imported containers land
     // canonical (no empty open with sealed stock remaining). Operates on the
@@ -1423,8 +1507,8 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         displayName = displayName?.takeUnless(String::isBlank),
         identityKey = identityKey,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
-        archivedAtEpochMillis = archivedAtEpochMillis,
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
+        archivedAtEpochMillis = archivedAtEpochMillis?.coerceAtLeast(createdAtEpochMillis),
         // Backups exported before this column existed simply omit it; default
         // to MG (matches both pre-picker behavior and the model default).
         displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,
@@ -1711,14 +1795,13 @@ internal data class ValidatedBackupSettings(
     val hazeBlurEnabled: Boolean,
     val classicNavigationBarEnabled: Boolean,
     val remindersEnabled: Boolean,
-    val healthConnectWeightSyncEnabled: Boolean,
+    val reminderRepeats: ReminderRepeats?,
+    val healthConnectWeightSyncEnabled: Boolean?,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
-    val appLockGracePeriodOption: AppLockGracePeriodOption,
-    val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val pkCalibrationIntroSeen: Boolean,
-    val appLanguageOption: AppLanguageOption,
+    val appLanguageOption: AppLanguageOption?,
     val calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
     val homeE2DisplayUnit: AllowedAnalyteUnit,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption,
@@ -1960,8 +2043,9 @@ private fun String?.parseUuid(fieldName: String): UUID {
 }
 
 private fun String.parseLocalDateIso(fieldName: String): String {
-    return runCatching { LocalDate.parse(this).toString() }
+    val date = runCatching { LocalDate.parse(this) }
         .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
+    return date.atStartOfDay().requireBackupDate(fieldName).toLocalDate().toString()
 }
 
 private fun validateImportPair(

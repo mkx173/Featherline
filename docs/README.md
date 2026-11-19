@@ -13,7 +13,7 @@ download links, see the [repo README](../README.md).
 ## Domain deep-dives
 
 - [Reminders](reminders.md) — AlarmManager pipeline, notification
-  channels, snooze, exact-alarm permission handling.
+  channels, repeats, Skip and swipe, exact-alarm permission handling.
 - [Widget](widget.md) — Glance app-widget pipeline, snapshot
   persistence, refresh triggers, quick-log action contract.
 - [PK differences](pk-differences.md) — upstream PK reference and the

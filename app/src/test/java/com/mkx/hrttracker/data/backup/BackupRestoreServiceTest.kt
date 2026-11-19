@@ -3,10 +3,15 @@ package com.mkx.hrttracker.data.backup
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
 import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.local.E2CalibrationMetadataEntity
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
@@ -29,7 +34,9 @@ import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.home.HomeCardType
@@ -43,11 +50,18 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.reminder.ReminderNotificationManager
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
+import com.mkx.hrttracker.ui.settings.BackupRestoreEvent
+import com.mkx.hrttracker.ui.settings.messageRes
+import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -58,22 +72,39 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.SequenceInputStream
 import java.time.Instant
+import java.util.Locale
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BackupRestoreServiceTest {
     private val context: Context = mockk(relaxed = true)
     private val contentResolver: ContentResolver = mockk(relaxed = true)
@@ -89,14 +120,19 @@ class BackupRestoreServiceTest {
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
+    private val reminderCapabilityReconciler: ReminderCapabilityReconciler = mockk()
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
-    private val reminderNotificationManager: ReminderNotificationManager =
-        mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupRestoreService
+
+    @get:Rule
+    val tmpFolder = TemporaryFolder()
+    private val settingsDispatcher = UnconfinedTestDispatcher()
+    private val settingsScope = TestScope(settingsDispatcher)
+    private val defaultLocale: Locale = Locale.getDefault()
 
     @Before
     fun setUp() {
@@ -123,50 +159,660 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         } just Runs
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any(), any()) } just Runs
+        coEvery { medicationReminderScheduler.clearSkips() } just Runs
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
 
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
-        service = BackupRestoreService(
+        service = restoreServiceFor(settingsRepository)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        unmockkAll()
+        Locale.setDefault(defaultLocale)
+    }
+
+    private fun restoreServiceFor(settingsRepository: SettingsRepository) = BackupRestoreService(
+        context = context,
+        databaseHolder = databaseHolder,
+        settingsRepository = settingsRepository,
+        homeSnapshotRepository = homeSnapshotRepository,
+        medicationReminderScheduler = medicationReminderScheduler,
+        reminderCapabilityReconciler = reminderCapabilityReconciler,
+        widgetAppearanceRepository = widgetAppearanceRepository,
+        backupCrypto = backupCrypto,
+        healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
+    )
+
+    // A device's real settings store, to read back what a restore wrote.
+    private fun deviceSettingsRepository(name: String): SettingsRepository {
+        // restoreSettings applies the language on Main.
+        Dispatchers.setMain(settingsDispatcher)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        return SettingsRepository(
+            PreferenceDataStoreFactory.create(
+                scope = settingsScope,
+                produceFile = { tmpFolder.newFile("$name.preferences_pb") },
+            ),
+        )
+    }
+
+    @Test
+    fun restoreBackupBytes_keepsTheDevicesLockGracePeriodAndHideContent() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setScreenLockProtectionEnabled(true)
+            device.setHideScreenContentEnabled(true)
+            device.setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            // Backups carry both companions of the lock; this one from a device that loosened them.
+            val backup = emptySnapshot().let { base ->
+                base.copy(
+                    settings = base.settings.copy(
+                        appLockGracePeriodOption = AppLockGracePeriodOption.THIRTY_MINUTES.name,
+                        hideScreenContentEnabled = false,
+                    ),
+                )
+            }
+
+            restoreServiceFor(device).restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(backup),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+
+            val settings = device.getCurrentSettings()
+            assertEquals("A restore turned the app lock off", true, settings.screenLockProtectionEnabled)
+            assertEquals(
+                "A restore turned hide screen content off",
+                true,
+                settings.hideScreenContentEnabled,
+            )
+            assertEquals(
+                "A restore lengthened the app lock's grace period",
+                AppLockGracePeriodOption.IMMEDIATELY,
+                settings.appLockGracePeriodOption,
+            )
+        }
+
+    // W8: a backup from before weight sync has no flag, and keeps the device's; one with a flag sets it.
+    @Test
+    fun restoreBackupBytes_keepsWeightSyncWithoutAFlag_andTakesOne() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setHealthConnectWeightSyncEnabled(true)
+            val service = restoreServiceFor(device)
+            fun restore(flag: Boolean?) = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(
+                    emptySnapshot().let { it.copy(settings = it.settings.copy(healthConnectWeightSyncEnabled = flag)) },
+                ),
+                password = "password".toCharArray(),
+            )
+
+            service.restoreBackupBytes(restore(flag = null), password = "password")
+            assertEquals(true, device.getCurrentSettings().healthConnectWeightSyncEnabled)
+
+            service.restoreBackupBytes(restore(flag = false), password = "password")
+            assertEquals(false, device.getCurrentSettings().healthConnectWeightSyncEnabled)
+        }
+
+    // As the weight-sync flag: a backup from before repeats keeps the device's; one with them sets them.
+    @Test
+    fun restoreBackupBytes_keepsTheReminderRepeatsWithoutThem_andTakesThem() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setReminderRepeats(ReminderRepeats(count = 1, intervalMinutes = 30))
+            val service = restoreServiceFor(device)
+            fun restore(count: Int?, interval: Int?) = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(
+                    emptySnapshot().let {
+                        it.copy(
+                            settings = it.settings.copy(
+                                reminderRepeatCount = count,
+                                reminderRepeatIntervalMinutes = interval,
+                            )
+                        )
+                    },
+                ),
+                password = "password".toCharArray(),
+            )
+
+            service.restoreBackupBytes(restore(count = null, interval = null), password = "password")
+            assertEquals(ReminderRepeats(1, 30), device.getCurrentSettings().reminderRepeats)
+
+            service.restoreBackupBytes(restore(count = 0, interval = 60), password = "password")
+            assertEquals(ReminderRepeats(0, 60), device.getCurrentSettings().reminderRepeats)
+            // The picker offers only valid ones; the store refuses any other.
+            assertTrue(runCatching { device.setReminderRepeats(ReminderRepeats(5, 15)) }.isFailure)
+        }
+
+    @Test
+    fun aStoredReminderRepeatOutOfRange_readsAsTheDefault_andAShortIntervalAs15() = runTest(settingsDispatcher) {
+        Dispatchers.setMain(settingsDispatcher)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        // A count past 4, or an interval off the wheel, reads as the default; one under 15 (the
+        // wheel offered 5 and 10 before batch F) as 15, with its count.
+        listOf(
+            Triple(9, 15, ReminderRepeats()),
+            Triple(2, 62, ReminderRepeats()),
+            Triple(2, 10, ReminderRepeats(2, 15)),
+            Triple(4, 5, ReminderRepeats(4, 15)),
+        ).forEachIndexed { index, (count, interval, expected) ->
+            val raw = PreferenceDataStoreFactory.create(
+                scope = settingsScope,
+                produceFile = { tmpFolder.newFile("raw$index.preferences_pb") },
+            )
+            raw.edit { preferences ->
+                preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_count")] = count
+                preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_interval_minutes")] = interval
+            }
+
+            assertEquals(expected, SettingsRepository(raw).getCurrentSettings().reminderRepeats)
+        }
+    }
+
+    @Test
+    fun aBackupsReminderRepeats_roundTrip_aShortIntervalReadsAs15_andOutOfRangeOrHalfOnesAreRejected() {
+        fun validated(count: Int?, interval: Int?) = runCatching {
+            emptySnapshot().let {
+                it.copy(settings = it.settings.copy(reminderRepeatCount = count, reminderRepeatIntervalMinutes = interval))
+            }.let { snapshot -> BackupSnapshotJsonCodec.decode(BackupSnapshotJsonCodec.encode(snapshot))!! }
+                .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+                .settings.reminderRepeats
+        }
+
+        assertEquals(ReminderRepeats(4, 15), validated(4, 15).getOrThrow())
+        assertEquals(ReminderRepeats(1, 60), validated(1, 60).getOrThrow())
+        // An earlier build's 5 or 10 minutes: the backup restores, with 15.
+        assertEquals(ReminderRepeats(3, 15), validated(3, 10).getOrThrow())
+        assertEquals(ReminderRepeats(4, 15), validated(4, 5).getOrThrow())
+        assertEquals(null, validated(null, null).getOrThrow())
+        assertTrue(validated(5, 15).isFailure)
+        assertTrue(validated(3, 17).isFailure)
+        assertTrue(validated(3, 65).isFailure)
+        assertTrue(validated(3, null).isFailure)
+        assertTrue(validated(null, 15).isFailure)
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresABackupWithAGraceOptionFromANewerVersion() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setScreenLockProtectionEnabled(true)
+            device.setHideScreenContentEnabled(true)
+            device.setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000260")
+            val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000261")
+            // Restore ignores the grace period, so a name this version doesn't know is harmless.
+            val backup = stockSnapshot(medicineUuid, logUuid).let { base ->
+                base.copy(
+                    settings = base.settings.copy(
+                        darkModeOption = DarkModeOption.DARK.name,
+                        appLockGracePeriodOption = "TWO_HOURS",
+                        hideScreenContentEnabled = false,
+                    ),
+                )
+            }
+            val medicinesSlot = slot<List<MedicineEntity>>()
+
+            val result = runCatching {
+                restoreServiceFor(device).restoreBackupBytes(
+                    encryptedBytes = backupCrypto.encryptSnapshotJson(
+                        json = BackupSnapshotJsonCodec.encode(backup),
+                        password = "password".toCharArray(),
+                    ),
+                    password = "password",
+                )
+            }
+
+            assertEquals(
+                "Rejected over a grace option restore ignores: ${result.exceptionOrNull()}",
+                BackupRestoreOutcome.RESTORED,
+                result.getOrNull(),
+            )
+            coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+            assertEquals(medicineUuid.toString(), medicinesSlot.captured.single().uuid)
+            val settings = device.getCurrentSettings()
+            assertEquals(DarkModeOption.DARK, settings.darkModeOption)
+            assertEquals(true, settings.screenLockProtectionEnabled)
+            assertEquals(true, settings.hideScreenContentEnabled)
+            assertEquals(AppLockGracePeriodOption.IMMEDIATELY, settings.appLockGracePeriodOption)
+        }
+
+    @Test
+    fun restoreBackupBytes_stillRejectsAnUnknownChartWindowBeforeTouchingTheDatabase() = runTest {
+        // Restore applies the chart window, so an unknown name is still incompatible.
+        val backup = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(homeE2ChartWindow = "TWO_HOURS"))
+        }
+
+        val result = runCatching {
+            service.restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(backup),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+        }
+
+        assertTrue(
+            "rejected as invalid, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IllegalArgumentException,
+        )
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_roundTripRestoresEverySettingButTheDevicesPrivacyOnes() =
+        runTest(settingsDispatcher) {
+            mockkStatic(AppCompatDelegate::class)
+            every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+            val e2 = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
+            val otherE2Unit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                e2.allowedUnits.first { unit -> unit != e2.canonicalUnit },
+            )
+            // Every setting off its default.
+            val source = deviceSettingsRepository("source").apply {
+                setDarkModeOption(DarkModeOption.DARK)
+                setAdaptiveColorEnabled(false)
+                setPureBlackEnabled(true)
+                setHazeBlurEnabled(false)
+                setClassicNavigationBarEnabled(true)
+                setCalibrationDefaultUnit(otherE2Unit)
+                setHomeE2DisplayUnit(otherE2Unit)
+                setHomeE2ChartWindowOption(
+                    HomeE2ChartWindowOption.entries.first { it != HomeE2ChartWindowOption.SEVEN_DAYS },
+                )
+                setRemindersEnabled(false)
+                setHealthConnectWeightSyncEnabled(true)
+                setShowArchivedGroupRecords(false)
+                setHideReferenceRanges(true)
+                setFirstDayOfWeekOption(FirstDayOfWeekOption.SUNDAY)
+                setHideMedicationDetails(true)
+                consumeNextGroupNameIndex()
+                setOnboardingCompleted(true)
+                setPkCalibrationIntroSeen(true)
+                acknowledgeTimeZone("Asia/Tokyo")
+                setStockNudgeEnabled(true)
+                setStockNudgeEnabled(false)
+                setHomeCardLayout(
+                    order = HomeCardLayout().order.reversed(),
+                    hidden = setOf(HomeCardType.LOW_STOCK),
+                )
+                setAppLanguageOption(AppLanguageOption.SIMPLIFIED_CHINESE)
+                setHideScreenContentEnabled(false)
+                setAppLockGracePeriodOption(AppLockGracePeriodOption.THIRTY_MINUTES)
+            }
+            val device = deviceSettingsRepository("device").apply {
+                setScreenLockProtectionEnabled(true)
+                setHideScreenContentEnabled(true)
+                setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            }
+
+            val encryptedBytes = backupExportServiceFor(
+                medicines = emptyList(),
+                medicationLogs = emptyList(),
+                exportSettingsRepository = source,
+            ).buildEncryptedBackupBytes(password = "password")
+            restoreServiceFor(device).restoreBackupBytes(encryptedBytes, password = "password")
+
+            assertEquals(
+                "The restore should bring every setting but the lock's three, which stay the device's",
+                source.getCurrentSettings().copy(
+                    screenLockProtectionEnabled = true,
+                    hideScreenContentEnabled = true,
+                    appLockGracePeriodOption = AppLockGracePeriodOption.IMMEDIATELY,
+                ),
+                device.getCurrentSettings(),
+            )
+            assertEquals(true, device.onboardingCompleted.first())
+            assertEquals(true, device.pkCalibrationIntroSeen.first())
+            assertEquals(false, device.stockNudgeEnabledFlow.first())
+            assertEquals(true, device.stockNudgeUserEnabledFlow.first())
+            assertEquals(source.homeCardLayoutFlow.first(), device.homeCardLayoutFlow.first())
+        }
+
+    @Test
+    fun loadEncryptedBackupBytes_rejectsAnotherKindOfFileFromItsFirstBytes() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        // A video picked by mistake: nothing in it is a backup header.
+        val video = CountingInputStream(ByteArray(4 * 1024 * 1024) { 0x42 })
+        every { contentResolver.openInputStream(fileUri) } returns video
+
+        val result = runCatching { service.loadEncryptedBackupBytes(fileUri) }
+
+        assertTrue(
+            "read ${video.bytesRead} bytes of a file that isn't a backup before rejecting it",
+            video.bytesRead <= BackupCrypto.MAGIC_BYTES.size,
+        )
+        assertTrue(
+            "rejected as incompatible, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IncompatibleBackupFileException,
+        )
+    }
+
+    @Test
+    fun loadEncryptedBackupBytes_reportsAFileTooLargeForTheHeapInsteadOfCrashing() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        // A backup header, then more than the heap holds.
+        val heapExhausted = object : InputStream() {
+            override fun read(): Int = throw OutOfMemoryError("Java heap space")
+            override fun read(b: ByteArray, off: Int, len: Int): Int =
+                throw OutOfMemoryError("Java heap space")
+        }
+        every { contentResolver.openInputStream(fileUri) } returns
+                SequenceInputStream(ByteArrayInputStream(BackupCrypto.MAGIC_BYTES), heapExhausted)
+
+        val result = runCatching { service.loadEncryptedBackupBytes(fileUri) }
+
+        // The file may be fine: this device can't hold it (B5).
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(result))
+    }
+
+    @Test
+    fun restoreBackupBytes_reportsABackupTooLargeForTheHeapAndWritesNothing() = runTest {
+        // Decryption holds the most memory: the ciphertext copy, the plaintext, the JSON.
+        val outOfHeap = BackupRestoreService(
             context = context,
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            reminderNotificationManager = reminderNotificationManager,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
             widgetAppearanceRepository = widgetAppearanceRepository,
-            backupCrypto = backupCrypto,
+            backupCrypto = BackupCrypto { _, _, _ -> throw OutOfMemoryError("Java heap space") },
             healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
         )
+
+        val result = runCatching {
+            outOfHeap.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+        }
+
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(result))
+        coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    // B5: only a failed decryption blames the password.
+    @Test
+    fun restoreBackupBytes_aWrongPasswordSaysSo() = runTest {
+        val result = runCatching { service.restoreBackupBytes(emptySnapshotBytes(), password = "wrong") }
+
+        assertEquals(R.string.settings_backup_restore_failed, messageFor(result))
     }
 
     @Test
-    fun restoreBackup_clears_existing_snoozes_after_restoring_snapshot() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
-                password = "password".toCharArray(),
-            )
+    fun restoreBackupBytes_aFailedWriteOrALostKeyIsAPlainFailure() = runTest {
+        for (failure in listOf(
+            IOException("No space left on device"),
+            DatabaseKeyUnavailableException("The keystore key is missing."),
+        )) {
+            coEvery { databaseHolder.runTransaction(any()) } throws failure
+
+            val result = runCatching { service.restoreBackupBytes(emptySnapshotBytes(), "password") }
+
+            assertEquals("$failure", R.string.settings_backup_restore_unable, messageFor(result))
+        }
+    }
+
+    // B6: the data is in, but the user is told to restore again, like any plain failure.
+    @Test
+    fun aFollowUpFailureIsAPlainFailure() {
+        assertEquals(
+            R.string.settings_backup_restore_unable,
+            BackupRestoreEvent.FollowUpFailed.messageRes(),
+        )
+    }
+
+    // The format check stays "not a compatible backup".
+    @Test
+    fun restoreBackupBytes_anotherAppsBackupIsIncompatible() = runTest {
+        val bytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                emptySnapshot().copy(app = BackupAppSnapshot(packageName = "com.example.other")),
+            ),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        val result = runCatching { service.restoreBackupBytes(bytes, password = "password") }
 
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        assertEquals(R.string.settings_backup_restore_incompatible_file, messageFor(result))
+    }
+
+    // B7: a newer snapshot inside a known container, and a newer container at the picker.
+    @Test
+    fun aBackupFromANewerVersionIsRefused_andSaysUnableToRestore() = runTest {
+        val newerSnapshot = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                emptySnapshot().copy(snapshotVersion = CURRENT_BACKUP_SNAPSHOT_VERSION + 1),
+            ),
+            password = "password".toCharArray(),
+        )
+        val newerContainer = emptySnapshotBytes().also {
+            it[BackupCrypto.MAGIC_BYTES.size] = (BackupCrypto.CURRENT_BACKUP_CONTAINER_VERSION + 1).toByte()
+        }
+
+        val restored = runCatching { service.restoreBackupBytes(newerSnapshot, "password") }
+        val picked = runCatching { service.validateBackupBytes(newerContainer) }
+
+        // Still refused as newer (the picker's check runs before the password dialog), and
+        // said plainly: unable to restore.
+        assertTrue(restored.exceptionOrNull() is NewerBackupVersionException)
+        assertTrue(picked.exceptionOrNull() is NewerBackupVersionException)
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(restored))
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(picked))
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    // B7: new KDF, cipher and compression ids extend the set without a container bump, so an
+    // id above the known ones is a newer app's.
+    @Test
+    fun aContainerIdAboveTheKnownOnesIsRefusedAsNewer() = runTest {
+        // After the magic and the version byte: the KDF (2), cipher (1) and compression (1) ids.
+        for ((offset, newer) in listOf(1 to 3, 2 to 2, 3 to 2)) {
+            val bytes = emptySnapshotBytes().also { it[BackupCrypto.MAGIC_BYTES.size + offset] = newer.toByte() }
+
+            val picked = runCatching { service.validateBackupBytes(bytes) }
+
+            assertTrue("id at +$offset", picked.exceptionOrNull() is NewerBackupVersionException)
+            assertEquals("id at +$offset", R.string.settings_backup_restore_unable, messageFor(picked))
+        }
+    }
+
+    private fun messageFor(result: Result<*>): Int =
+        BackupRestoreEvent.Failure(checkNotNull(result.exceptionOrNull())).messageRes()
+
+    private class CountingInputStream(bytes: ByteArray) : ByteArrayInputStream(bytes) {
+        val bytesRead: Int get() = pos
+    }
+
+    @Test
+    fun restoreBackup_clearsTheSkips_andReconcilesWithARepost_afterRestoringTheSnapshot() = runTest {
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+            password = "password".toCharArray(),
+        )
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        // The skips first, then a forced reconcile that reposts what's on screen (B3, B11).
+        coVerifyOrder {
+            medicationReminderScheduler.clearSkips()
+            reminderCapabilityReconciler.reconcile("backup_restore", forceReschedule = true, repostShown = true)
+        }
         // A restored sync flag syncs now, or turns off without access.
         verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true) }
     }
 
     @Test
+    fun restoreBackupBytes_leavesShownRemindersToTheReconcileAfterTheCommit() = runTest {
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.RESTORED, outcome)
+        // Restore no longer dismisses reminders itself, which lost the due ones:
+        // rescheduleAll, after the commit, keeps a shown reminder still due in
+        // the restored data and drops or refreshes the rest.
+        coVerifyOrder {
+            databaseHolder.runTransaction(any())
+            reminderCapabilityReconciler.reconcile(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_keepsShownRemindersWhenTheTransactionFails() = runTest {
+        coEvery { databaseHolder.runTransaction(any()) } throws IllegalStateException("disk full")
+
+        val result = runCatching {
+            service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+        }
+
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
+        // Nothing changed, so the reminders on screen are still right, and
+        // nothing that could dismiss them ran.
+        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+        // Rolled back: the next pass, or the next start's, settles the mark.
+        verify(exactly = 1) { reconcileMark.committed() }
+    }
+
+    @Test
+    fun restoreBackupBytes_marksRemindersForReconcileBeforeTheCommit() = runTest {
+        service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        // Startup reconciles a pending mark if the process dies past the commit.
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            databaseHolder.runTransaction(any())
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(),
+                any(),
+            )
+            // Past the settings, which hold the master switch the pass reads.
+            reconcileMark.committed()
+            reminderCapabilityReconciler.reconcile(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_reportsRestoredDataAndRunsTheFollowUpsWhenSettingsFailAfterTheCommit() =
+        runTest {
+            coEvery {
+                settingsRepository.restoreSettings(
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(),
+                    any(),
+                )
+            } throws IOException("datastore write failed")
+
+            val result = runCatching {
+                service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+            }
+
+            assertEquals(
+                "The data was committed, so a settings failure must not report a failed restore",
+                BackupRestoreOutcome.FOLLOW_UP_FAILED,
+                result.getOrNull(),
+            )
+            coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
+            coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+            coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+            verify(exactly = 1) {
+                healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+            }
+        }
+
+    @Test
+    fun restoreBackupBytes_reportsAFailedFollowUpWhenTheRescheduleFails() = runTest {
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any(), any()) } throws IOException("alarm store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+    }
+
+    @Test
+    fun restoreBackupBytes_stillReconcilesWhenTheSkipClearFails() = runTest {
+        coEvery { medicationReminderScheduler.clearSkips() } throws IOException("schedule store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_runsTheFollowUpsWhenSettingsThrowACancellationException() = runTest {
+        // Not a cancel of the restore, which can't reach the gate: the write's own failure.
+        coEvery {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(),
+                any(),
+            )
+        } throws CancellationException("datastore scope")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+        verify(exactly = 1) {
+            healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresWithoutTheReconcileMarkWhenItCantBeStored() = runTest {
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws IOException("schedule store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        // A cold start runs a full pass anyway, so the mark is only a safety net.
+        assertEquals(BackupRestoreOutcome.RESTORED, outcome)
+        coVerify(exactly = 1) { databaseHolder.runTransaction(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_runsTheRestWhenAFollowUpThrowsACancellationException() = runTest {
+        // Not a cancel of the restore, which can't reach the follow-ups: the step's own failure.
+        coEvery { widgetAppearanceRepository.setDefault(any()) } throws
+            CancellationException("datastore scope")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+    }
+
+    private fun emptySnapshotBytes(): ByteArray = backupCrypto.encryptSnapshotJson(
+        json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+        password = "password".toCharArray(),
+    )
+
+    @Test
     fun restoreBackup_keepsTheUnitOfAProfileWithoutAWeight() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
         val snapshot = emptySnapshot().copy(
             userProfile = BackupUserProfileSnapshot(
                 weightKg = null,
@@ -174,14 +820,12 @@ class BackupRestoreServiceTest {
                 weightOriginalUnit = "POUNDS",
             ),
         )
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(snapshot),
-                password = "password".toCharArray(),
-            )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 
         // A later Health Connect reading then shows in lb, as after clearWeight.
         coVerify(exactly = 1) {
@@ -193,7 +837,6 @@ class BackupRestoreServiceTest {
 
     @Test
     fun restoreBackup_fallsBackToKilograms_forAProfileWithoutAWeightAndAnUnknownUnit() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
         val snapshot = emptySnapshot().copy(
             userProfile = BackupUserProfileSnapshot(
                 weightKg = null,
@@ -201,14 +844,12 @@ class BackupRestoreServiceTest {
                 weightOriginalUnit = "stone",
             ),
         )
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(snapshot),
-                password = "password".toCharArray(),
-            )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
         )
 
-        service.restoreBackup(fileUri = fileUri, password = "password")
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 
         coVerify(exactly = 1) {
             userProfileDao.upsertProfile(
@@ -307,16 +948,8 @@ class BackupRestoreServiceTest {
     )
 
     @Test
-    fun validateBackupFile_accepts_supported_backup_container() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            backupCrypto.encryptSnapshotJson(
-                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
-                password = "password".toCharArray(),
-            )
-        )
-
-        service.validateBackupFile(fileUri)
+    fun validateBackupBytes_accepts_supported_backup_container() = runTest {
+        service.validateBackupBytes(emptySnapshotBytes())
     }
 
     @Test
@@ -334,22 +967,17 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         }
     }
 
     @Test
-    fun validateBackupFile_rejects_non_backup_input_before_password_prompt() = runTest {
-        val fileUri: Uri = mockk(relaxed = true)
-        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
-            "not a backup".encodeToByteArray()
-        )
-
+    fun validateBackupBytes_rejects_non_backup_input_before_password_prompt() = runTest {
         val error = try {
-            service.validateBackupFile(fileUri)
-            fail("Expected validateBackupFile to reject non-backup input.")
+            service.validateBackupBytes("not a backup".encodeToByteArray())
+            fail("Expected validateBackupBytes to reject non-backup input.")
             null
         } catch (error: IOException) {
             error
@@ -1158,11 +1786,11 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
     }
 
     @Test
@@ -1177,8 +1805,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1219,8 +1845,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1261,8 +1885,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1305,8 +1927,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1346,8 +1966,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1435,7 +2053,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1468,7 +2086,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1497,7 +2115,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1545,8 +2163,15 @@ class BackupRestoreServiceTest {
     private fun backupExportServiceFor(
         medicines: List<Medicine>,
         medicationLogs: List<MedicationLogEntry>,
+        exportSettingsRepository: SettingsRepository = mockk<SettingsRepository>().also { settings ->
+            every { settings.onboardingCompleted } returns flowOf(true)
+            every { settings.pkCalibrationIntroSeen } returns flowOf(true)
+            every { settings.stockNudgeEnabledFlow } returns flowOf(true)
+            every { settings.stockNudgeUserEnabledFlow } returns flowOf(false)
+            every { settings.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
+            coEvery { settings.getCurrentSettings() } returns SettingsState()
+        },
     ): BackupExportService {
-        val exportSettingsRepository: SettingsRepository = mockk()
         val exportUserProfileRepository: UserProfileRepository = mockk()
         val exportMedicineRepository: MedicineRepository = mockk()
         val exportMedicationGroupRepository: MedicationGroupRepository = mockk()
@@ -1556,12 +2181,6 @@ class BackupRestoreServiceTest {
         val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
         val exportJournalRepository: JournalRepository = mockk()
 
-        every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
-        every { exportSettingsRepository.pkCalibrationIntroSeen } returns flowOf(true)
-        every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
-        every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
-        every { exportSettingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
-        coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery {
             exportWidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         } returns false
@@ -1578,8 +2197,14 @@ class BackupRestoreServiceTest {
         coEvery { exportJournalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { exportJournalRepository.getNoteEntities() } returns emptyList()
 
+        val exportDatabaseHolder: DatabaseHolder = mockk()
+        coEvery { exportDatabaseHolder.withTransaction<Any?>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Any?>().invoke(database)
+        }
+
         return BackupExportService(
             context = context,
+            databaseHolder = exportDatabaseHolder,
             settingsRepository = exportSettingsRepository,
             userProfileRepository = exportUserProfileRepository,
             medicineRepository = exportMedicineRepository,

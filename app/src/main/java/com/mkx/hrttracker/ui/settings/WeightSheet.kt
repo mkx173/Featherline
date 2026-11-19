@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.foundation.layout.Box
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -85,6 +84,8 @@ import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.ui.components.AccessDenial
+import com.mkx.hrttracker.ui.components.FollowAccessDenial
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -110,35 +111,33 @@ private class HealthConnectWeightSync(
 
 /**
  * Turning sync on asks for READ weight first; a grant enables it, a denial
- * leaves it off. Lives in [WeightSheet], so a denial's pending enable dies with
- * the sheet: a grant made some other day can't turn sync on by itself and
- * replace a weight typed meanwhile.
+ * leaves it off and shows the message to Health Connect's settings. The denial
+ * is the app's ([denial], in AccessDenials): the message is there whenever the
+ * sheet opens again, until access returns or the app restarts. Access granted
+ * on the return from the message's trip to Health Connect finishes the enable;
+ * granted any other way, some other day, it only ends the denial: it can't turn
+ * sync on by itself and replace a weight typed meanwhile.
  */
 @Composable
 private fun rememberHealthConnectWeightSync(
     healthConnect: HealthConnectCapabilityState,
+    denial: AccessDenial,
     onEnable: () -> Unit,
     onDisable: () -> Unit,
 ): HealthConnectWeightSync {
     val context = LocalContext.current
     // Set by a denial: the sheet then points to Health Connect's settings, since
     // after repeated denials its dialog stops showing and the app can't tell.
-    var denied by rememberSaveable { mutableStateOf(false) }
+    val denied = denial.isDenied
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
     ) { granted ->
-        denied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
-        if (!denied) onEnable()
+        denial.isDenied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
+        if (!denial.isDenied) onEnable()
     }
     val hasAccess = healthConnect.hasAccess
-    // Access granted in Health Connect after a denial finishes the enable.
-    LaunchedEffect(hasAccess) {
-        if (hasAccess && denied) {
-            denied = false
-            onEnable()
-        }
-    }
-    return remember(healthConnect, denied, onEnable, onDisable) {
+    FollowAccessDenial(denial = denial, hasAccess = hasAccess, onAccessAllowed = onEnable)
+    return remember(healthConnect, denial, denied, onEnable, onDisable) {
         HealthConnectWeightSync(
             onSyncEnabledChange = { enabled ->
                 when {
@@ -162,11 +161,8 @@ private fun rememberHealthConnectWeightSync(
                 } else {
                     Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                 }
-                try {
-                    context.startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                    // Health Connect (or Play) went away; the card shows it as unavailable.
-                }
+                // If Health Connect (or Play) went away, nothing opens; the card shows it as unavailable.
+                denial.openSettings(context, intent)
             },
         )
     }
@@ -217,10 +213,14 @@ internal fun WeightSheet(
     onSyncDisable: () -> Unit,
     onSyncNow: () -> Unit,
     onDismissRequest: () -> Unit,
+    /** The app's Health Connect denial (AccessDenials.healthConnect): it outlives the sheet. */
+    healthConnectDenial: AccessDenial,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    /** The unit switch with sync on: converts the stored weight. */
+    onUnitChange: (WeightUnit) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val sync = rememberHealthConnectWeightSync(healthConnect, onSyncEnable, onSyncDisable)
+    val sync = rememberHealthConnectWeightSync(healthConnect, healthConnectDenial, onSyncEnable, onSyncDisable)
     // Shown beside the sheet, not inside its window: a dialog composed in the
     // sheet's content stretches edge to edge.
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }
@@ -256,6 +256,7 @@ internal fun WeightSheet(
             onClose = close,
             showPermissionDenied = sync.showPermissionDenied,
             onOpenHealthConnect = sync.onOpenHealthConnect,
+            onUnitChange = onUnitChange,
             modifier = Modifier.padding(
                 start = dimensionResource(R.dimen.padding_large),
                 end = dimensionResource(R.dimen.padding_large),
@@ -308,11 +309,13 @@ internal fun WeightSheetContent(
     modifier: Modifier = Modifier,
     showPermissionDenied: Boolean = false,
     onOpenHealthConnect: () -> Unit = {},
+    /** The unit switch with sync on: converts the stored weight. */
+    onUnitChange: (WeightUnit) -> Unit = {},
 ) {
     // Follows the switch's checked state. With sync on, Health Connect is the
-    // source and the weight is read-only; turn sync off to type one. That holds
-    // while Health Connect only needs an update, so the reading after the
-    // update can't replace a weight typed meanwhile.
+    // source and the weight is read-only but for its unit; turn sync off to
+    // type one. That holds while Health Connect only needs an update, so the
+    // reading after the update can't replace a weight typed meanwhile.
     val syncOn = healthConnect.isSyncOn(syncEnabled)
     val isSyncingShown = rememberSyncingHeldForATurn(isSyncing)
     val hasWeight = profile.weightOriginalValue != null
@@ -386,14 +389,26 @@ internal fun WeightSheetContent(
                 Text(text = stringResource(R.string.personalization_weight_dialog_value_label))
             },
             trailingIcon = {
+                // HC stores a mass with no unit, so with sync on the stored weight
+                // switches unit and a sync rewrites it from HC's own value; the
+                // field follows the profile. Only when the weight shown is the
+                // last sync's valid reading: not before a sync, after a failed
+                // one, or for a weight kept for want of one.
+                val showsAReading = hasWeight && healthConnect.hasAccess &&
+                    !healthConnect.syncPending && !healthConnect.syncFailed &&
+                    readingProblem == null
                 WeightUnitSwitch(
                     unit = selectedUnit,
-                    enabled = !syncOn,
+                    enabled = !syncOn || showsAReading,
                     onSwitch = { otherUnit ->
-                        if (!isInProgress) {
-                            valueText = convertWeightText(valueText, selectedUnit, otherUnit)
-                            selectedUnit = otherUnit
-                            isDirty = true
+                        when {
+                            isInProgress -> Unit
+                            syncOn -> onUnitChange(otherUnit)
+                            else -> {
+                                valueText = convertWeightText(valueText, selectedUnit, otherUnit)
+                                selectedUnit = otherUnit
+                                isDirty = true
+                            }
                         }
                     },
                 )
@@ -411,14 +426,12 @@ internal fun WeightSheetContent(
                     text = when {
                         showValidationError ->
                             stringResource(R.string.personalization_weight_validation_invalid)
-                        // Why the last sync kept the field's value; the switch's
-                        // status line only says the sync ran.
-                        syncOn && readingProblem == ReadingProblem.NONE_FOUND ->
-                            stringResource(R.string.personalization_weight_dialog_description_no_reading)
+                        // Why the last sync kept the field's value. With none
+                        // found the status line says so, and the date shows.
                         syncOn && readingProblem == ReadingProblem.INVALID ->
                             stringResource(R.string.personalization_weight_dialog_description_invalid_reading)
-                        // The synced weight's date, shown with the field's value.
-                        syncOn && measuredAt != null -> {
+                        // The weight's date, typed or synced.
+                        measuredAt != null -> {
                             val zone = ZoneId.systemDefault()
                             stringResource(
                                 R.string.personalization_weight_dialog_description_recorded,
@@ -435,7 +448,6 @@ internal fun WeightSheetContent(
         )
 
         HealthConnectSection(
-            profile = profile,
             syncEnabled = syncEnabled,
             syncOn = syncOn,
             healthConnect = healthConnect,
@@ -546,8 +558,10 @@ private fun WeightUnitSwitch(
             onClick = { onSwitch(otherUnit) },
             enabled = enabled,
             // The field already fades its trailing color while syncing; the
-            // default disabled alpha would fade the icon a second time.
+            // default disabled alpha would fade the icon a second time. Usable
+            // with sync on, the icon keeps the unfaded trailing color.
             colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledContentColor = LocalContentColor.current,
             ),
         ) {
@@ -571,7 +585,6 @@ private fun WeightUnitSwitch(
  */
 @Composable
 private fun HealthConnectSection(
-    profile: UserProfile,
     syncEnabled: Boolean,
     syncOn: Boolean,
     healthConnect: HealthConnectCapabilityState,
@@ -583,7 +596,7 @@ private fun HealthConnectSection(
     onOpenHealthConnect: () -> Unit,
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainer
-    val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, readingProblem)
+    val status = healthConnectStatusText(syncEnabled, healthConnect, isSyncing, readingProblem)
     // After a denial the message below is the way to grant access (see there).
     // Sync on without the SDK (update needed) can still be turned off.
     val switchEnabled = (healthConnect.sdkAvailable || syncOn) && !showPermissionDenied
@@ -682,7 +695,6 @@ private fun SyncNowButton(isSyncing: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun healthConnectStatusText(
-    profile: UserProfile,
     syncEnabled: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
@@ -704,10 +716,13 @@ private fun healthConnectStatusText(
         !syncEnabled || !healthConnect.hasAccess -> stringResource(R.string.health_connect_status_off)
         isSyncing -> stringResource(R.string.health_connect_status_syncing)
         healthConnect.syncFailed -> stringResource(R.string.health_connect_status_sync_failed)
-        // No measured time and no sync that kept the weight means a sync is on
-        // its way (sync just turned on, or this process's first one).
-        profile.weightMeasuredAt == null && readingProblem == null ->
-            stringResource(R.string.health_connect_status_syncing)
+        // A sync is on its way (sync just turned on, or this process's first
+        // one): the weight and date shown may be typed ones.
+        healthConnect.syncPending -> stringResource(R.string.health_connect_status_syncing)
+        // Health Connect holds no reading dated before now; the kept weight's
+        // date sits under the field.
+        readingProblem == ReadingProblem.NONE_FOUND ->
+            stringResource(R.string.personalization_weight_no_records)
         // The reading's date, or why the sync kept the weight, sits under the field.
         else -> stringResource(R.string.health_connect_status_synced)
     }

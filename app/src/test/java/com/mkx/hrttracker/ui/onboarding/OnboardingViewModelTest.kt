@@ -21,6 +21,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -172,6 +174,32 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun setWeightUnit_convertsTheStoredWeight_thenForcesASync() = runTest {
+        val viewModel = createViewModel()
+        coEvery { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) } just Runs
+
+        viewModel.setWeightUnit(WeightUnit.POUNDS)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) }
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", true) }
+    }
+
+    @Test
+    fun setWeightUnit_reportsAFailure_andDoesNotSync() = runTest {
+        val viewModel = createViewModel()
+        val failure = IllegalStateException("weight write failed")
+        coEvery { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) } throws failure
+        val event = backgroundScope.async { viewModel.onboardingMutationEvents.first() }
+
+        viewModel.setWeightUnit(WeightUnit.POUNDS)
+        advanceUntilIdle()
+
+        assertSame(failure, (event.await() as OnboardingMutationEvent.Failure).error)
+        verify(exactly = 0) { healthConnectCapabilityReconciler.requestReconcile(any(), any()) }
+    }
+
+    @Test
     fun uiState_countsMedicinesWithStockTrackingEnabled() = runTest {
         every { medicineRepository.observeAllActiveOrNull() } returns flowOf(
             listOf(
@@ -226,9 +254,11 @@ class OnboardingViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicineRepository = medicineRepository,
             weightSyncCoordinator = mockk(relaxed = true),
-            healthConnectCapabilityReconciler = mockk(relaxed = true),
+            healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
         )
     }
+
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
 
     private fun medicine(trackingEnabled: Boolean): Medicine {
         val uuid = UUID.randomUUID()

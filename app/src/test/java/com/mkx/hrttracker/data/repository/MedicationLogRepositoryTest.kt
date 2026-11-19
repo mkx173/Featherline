@@ -259,7 +259,7 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
-    fun saveEntry_editOnlyUpdatesDateTimeAndCount() = runTest {
+    fun saveEntry_editOnlyUpdatesDateTime() = runTest {
         val entryUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         val appliedAt = Instant.parse("2026-05-22T09:30:00Z")
@@ -269,7 +269,6 @@ class MedicationLogRepositoryTest {
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = "Asia/Tokyo",
                 scheduledForIso = null,
-                count = 2,
             )
         } returns Unit
 
@@ -290,7 +289,6 @@ class MedicationLogRepositoryTest {
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = "Asia/Tokyo",
                 scheduledForIso = null,
-                count = 2,
             )
         }
         coVerify(exactly = 0) { dao.insertEntry(any()) }
@@ -312,7 +310,6 @@ class MedicationLogRepositoryTest {
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = "Asia/Tokyo",
                 scheduledForIso = null,
-                count = 1,
             )
         } returns Unit
 
@@ -333,7 +330,6 @@ class MedicationLogRepositoryTest {
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = "Asia/Tokyo",
                 scheduledForIso = null,
-                count = 1,
             )
         }
         coVerify(exactly = 0) { dao.insertEntries(any()) }

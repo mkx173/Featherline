@@ -8,13 +8,15 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
-import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
@@ -59,18 +61,19 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                     "reminder_receiver_ignored reason=missing_or_invalid_group_uuid action=${intent.action}"
                 )
             }
-        val scheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
-            ?.let(LocalDateTime::parse)
-            ?: LocalDateTime.now()
+        // Null from a v1.4.2 alarm, which only a v1.4.2 key, with no time, takes.
+        val alertAt = intent.takeIf { it.hasExtra(EXTRA_ALERT_AT) }
+            ?.let { Instant.ofEpochMilli(it.getLongExtra(EXTRA_ALERT_AT, 0L)) }
 
         diagnosticsLogger.info(
             TAG,
-            "reminder_receiver_received groupUuid=$groupUuid scheduledAt=$scheduledAt action=${intent.action}"
+            "reminder_receiver_received groupUuid=$groupUuid alertAt=$alertAt action=${intent.action}"
         )
         handleDoseReminder(
             groupUuid = groupUuid,
-            scheduledAt = scheduledAt,
-            now = LocalDateTime.now(),
+            alertAt = alertAt,
+            legacyScheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
+                ?.let { value -> runCatching { LocalDateTime.parse(value) }.getOrNull() },
             deadline = deadline,
             appScope = appScope,
             settingsRepository = settingsRepository,
@@ -86,14 +89,19 @@ class MedicationReminderReceiver : BroadcastReceiver() {
 }
 
 /**
- * Posts the dose reminder for [scheduledAt], or for the group's latest due
- * time when that is later, and finishes the broadcast once it is done.
+ * Posts the plan's reminder for its latest alert from [alertAt] up to the clock, read once it
+ * holds the lock, then arms its next alert, and finishes the broadcast once it is done. Only the
+ * plan's own doses: plans that share an alert time each post their own, and only the first to
+ * arrive sounds.
  */
 internal fun handleDoseReminder(
     groupUuid: UUID,
-    scheduledAt: LocalDateTime,
-    /** When the broadcast was received. */
-    now: LocalDateTime,
+    /** The alert the alarm was armed for; null from a v1.4.2 alarm. */
+    alertAt: Instant?,
+    /** The dose time a v1.4.2 alarm carried. */
+    legacyScheduledAt: LocalDateTime? = null,
+    /** Read under the lock, not at receipt: a delivery can wait there past the plan's next alert. */
+    clock: () -> Instant = Instant::now,
     /** The end of the broadcast's budget, counted from its receipt. */
     deadline: TimeMark,
     appScope: CoroutineScope,
@@ -105,69 +113,110 @@ internal fun handleDoseReminder(
     e2EstimateRepository: E2EstimateRepository,
     diagnosticsLogger: AppDiagnosticsLogger,
     pendingResult: BroadcastReceiver.PendingResult,
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
     appScope.launch {
         runCatching {
-            val settings = settingsRepository.getCurrentSettings()
-            if (!settings.remindersEnabled) {
+            if (!settingsRepository.getCurrentSettings().remindersEnabled) {
                 diagnosticsLogger.info(
                     TAG,
-                    "reminder_receiver_master_disabled groupUuid=$groupUuid scheduledAt=$scheduledAt"
+                    "reminder_receiver_master_disabled groupUuid=$groupUuid alertAt=$alertAt"
                 )
                 medicationReminderScheduler.cancelReminder(groupUuid)
                 return@runCatching
             }
 
-            val groups = medicationGroupRepository.getGroups()
-            // Delivered late, or after the clock moved ahead: the dose due now,
-            // the group's latest past time, and not each time in between.
-            val slotAt = groups.firstOrNull { group -> group.uuid == groupUuid }
-                ?.previousScheduledForBefore(now)
-                ?.takeIf { latest -> latest.isAfter(scheduledAt) }
-                ?: scheduledAt
-            val entries = medicationLogRepository.getScheduledGroupEntriesSince(slotAt)
-            val bundle = buildMedicationReminderBundle(
-                scheduledAt = slotAt,
-                // A group due again since slotAt gets its own, later reminder.
-                groups = groups.filterNot { group ->
-                    group.previousScheduledForBefore(now)?.isAfter(slotAt) == true
-                },
-                entries = entries,
-            )
-            if (bundle != null) {
-                reminderNotificationManager.showDoseReminderNotification(
-                    bundle,
-                    hideMedicationDetails = settings.hideMedicationDetails,
-                )
-                diagnosticsLogger.info(
-                    TAG,
-                    "reminder_receiver_notification_shown groupUuid=$groupUuid " +
-                            "slotAt=$slotAt groups=${groups.size} entries=${entries.size} " +
-                            "items=${bundle.items.size}"
-                )
-            } else {
-                diagnosticsLogger.info(
-                    TAG,
-                    "reminder_receiver_notification_skipped reason=no_bundle groupUuid=$groupUuid " +
-                            "slotAt=$slotAt groups=${groups.size} entries=${entries.size}"
-                )
-            }
+            // One hold from the check to the reschedule: a pass in between would arm this
+            // alert again, and that alarm would pass the check too.
+            withReminderScheduleLock {
+                // The clock and the repeats as of the hold: a delivery that waited for the lock
+                // past the plan's next alert rings that one once, and a repeat received before
+                // repeats were turned off rings nothing.
+                val now = clock()
+                val repeats = settingsRepository.getCurrentSettings().reminderRepeats
+                if (!medicationReminderScheduler.awaitsReminderDelivery(groupUuid, alertAt)) {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "reminder_receiver_notification_skipped reason=delivered groupUuid=$groupUuid " +
+                                "alertAt=$alertAt"
+                    )
+                } else {
+                    // Compared as instants: an alert's own, never its wall time read back.
+                    val since = alertAt
+                        ?: legacyScheduledAt?.atZone(zone)?.toInstant()
+                        ?: now
+                    val group = medicationGroupRepository.getGroup(groupUuid)
+                    val entries = medicationLogRepository.getScheduledGroupEntriesSince(
+                        reminderDosesFrom(minOf(since, now), repeats, zone)
+                    )
+                    val alert = group?.latestDueReminderAlert(
+                        since = since,
+                        now = now,
+                        entries = entries,
+                        repeats = repeats,
+                        skippedThrough = medicationReminderScheduler.skippedThrough(groupUuid),
+                        zone = zone,
+                    )
+                    val bundle = if (group != null && alert != null) {
+                        buildMedicationReminderBundle(scheduledAt = alert.doseAt, group = group, entries = entries)
+                    } else {
+                        null
+                    }
+                    // Read again last before the post: Settings may have turned reminders off
+                    // since the read above, and its own pass runs only after this hold.
+                    val current = settingsRepository.getCurrentSettings()
+                    if (bundle != null && !current.remindersEnabled) {
+                        diagnosticsLogger.info(
+                            TAG,
+                            "reminder_receiver_notification_skipped reason=master_disabled groupUuid=$groupUuid"
+                        )
+                    } else if (alert != null && bundle != null) {
+                        val sounds = medicationReminderScheduler.claimAlertSound(alert.alertAt)
+                        reminderNotificationManager.showDoseReminderNotification(
+                            bundle,
+                            hideMedicationDetails = current.hideMedicationDetails,
+                            silent = !sounds,
+                        )
+                        diagnosticsLogger.info(
+                            TAG,
+                            "reminder_receiver_notification_shown groupUuid=$groupUuid " +
+                                    "doseAt=${alert.doseAt} alertAt=${alert.alertAt} sounds=$sounds " +
+                                    "entries=${entries.size} items=${bundle.items.size}"
+                        )
+                    } else {
+                        diagnosticsLogger.info(
+                            TAG,
+                            "reminder_receiver_notification_skipped reason=no_bundle groupUuid=$groupUuid " +
+                                    "since=$since entries=${entries.size}"
+                        )
+                    }
+                }
+                medicationReminderScheduler.markReminderDelivered(groupUuid, alertAt)
 
-            // Not before now: a slot in the past would fire at once.
-            val after = maxOf(slotAt.plusSeconds(1), now)
-            medicationReminderScheduler.rescheduleGroup(groupUuid = groupUuid, after = after)
-            diagnosticsLogger.info(
-                TAG,
-                "reminder_receiver_reschedule_requested groupUuid=$groupUuid after=$after"
-            )
-            // The slot is no longer planned, so Home's estimate moved: store
+                // The next alert strictly after now: the one rung is at or before it.
+                try {
+                    medicationReminderScheduler.rescheduleGroup(
+                        groupUuid = groupUuid,
+                        after = now,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "reminder_receiver_reschedule_failed groupUuid=$groupUuid after=$now",
+                        error,
+                    )
+                }
+            }
+            // The alert is no longer planned, so Home's estimate moved: store
             // the new one before the user opens the app, within what is left
             // of the budget.
             withTimeoutOrNull(-deadline.elapsedNow()) { e2EstimateRepository.warmHome() }
         }.onFailure { throwable ->
             diagnosticsLogger.warning(
                 TAG,
-                "reminder_receiver_failed groupUuid=$groupUuid scheduledAt=$scheduledAt",
+                "reminder_receiver_failed groupUuid=$groupUuid alertAt=$alertAt",
                 throwable,
             )
         }.also {

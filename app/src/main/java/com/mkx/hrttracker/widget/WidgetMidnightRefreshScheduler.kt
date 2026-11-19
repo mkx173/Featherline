@@ -6,29 +6,26 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.net.toUri
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
 
 /**
- * The next of civil midnight, 04:00 and noon. Midnight refreshes journal anchors (civil
- * dates), 04:00 the day split for night owl plans, and noon drops Last night, matching
- * Home.
+ * The next start of a Home/widget section ([MedicationDayTimeRange]). Civil midnight
+ * refreshes journal anchors (civil dates), 04:00 the day split for night owl plans, noon
+ * drops Last night and 18:00 opens Coming up for midnight plans, matching Home.
  */
-// ponytail: 04:00 is armed whatever the plans are, so the alarm never reads them;
-// with no night owl plan that is one spare widget refresh a day.
+// ponytail: every start is armed whatever the plans are, so the alarm never reads them;
+// a start no plan uses (04:00 or 18:00) is one spare widget refresh a day.
 internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime {
     val date = now.toLocalDate()
-    return listOf(
-        date.atTime(MedicationDayBoundary.FourAm.startTime),
-        date.atTime(LocalTime.NOON),
-        date.plusDays(1).atStartOfDay(),
-    ).first { refreshAt -> refreshAt.isAfter(now) }
+    return (MedicationDayTimeRange.entries.map { range -> date.atTime(range.startHour, 0) } +
+        date.plusDays(1).atStartOfDay())
+        .first { refreshAt -> refreshAt.isAfter(now) }
 }
 
 internal fun scheduleNextWidgetDateRefresh(

@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkProjectionResult
@@ -147,7 +148,10 @@ class E2EstimateRepository @Inject constructor(
      * mutation's run hasn't published: that gap is [E2Pending.USER] too,
      * from the commit, so the hold covers the run. If the worker gives up
      * on that run, the hold releases and the value stays; the minute's
-     * re-asks for the same generation don't hold again.
+     * re-asks for the same generation don't hold again. A state whose
+     * minute reached a lab the fit left out as dated after its run asks for
+     * a run too, so the fit takes the lab in while the app is open, or as
+     * the observation restarts on a return or a cold start.
      */
     fun observeHome(now: Flow<LocalDateTime>): Flow<E2State<HomeE2Estimate>> = observe(
         now = now,
@@ -229,6 +233,14 @@ class E2EstimateRepository @Inject constructor(
                         state = state.copy(pending = null)
                         emit(state)
                         return@transformLatest
+                    }
+                    // The clock reached a lab the fit left out as dated after
+                    // its run: the run that solves it in, asked for again at
+                    // each minute until it publishes, like a missing part's.
+                    // The clock's instant: a minute in a repeated fall-back hour
+                    // names two.
+                    if (current.hasDueLab(clock.millis())) {
+                        homeSnapshotRepository.requestRebuildIfIdle()
                     }
                     val key = keyOf(current.e2Inputs(), minute, zoneId)
                     if (key == shownKey) {
@@ -446,6 +458,15 @@ class E2EstimateRepository @Inject constructor(
         fun <K, V> lastKeys(): MutableMap<K, V> = object : LinkedHashMap<K, V>(4, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > MEMO_SIZE
         }
+    }
+}
+
+/** Whether [nowEpochMillis] reached a lab [E2InputsRecord.fit] left out as dated after its run. */
+internal fun E2InputsRecord.hasDueLab(nowEpochMillis: Long): Boolean {
+    // ponytail: a failed solve keeps no reasons, so its labs wait for the next run.
+    val ignored = (fit?.outcome as? FitOutcome.Solved)?.result?.ignoredLabs ?: return false
+    return labs.any { lab ->
+        ignored[lab.resultId] == PkCalibrationLabIgnoreReason.FUTURE && lab.collectedAtEpochMillis <= nowEpochMillis
     }
 }
 

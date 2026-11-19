@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.log
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.ScheduledDoseAlreadyLoggedException
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -23,10 +24,14 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.MedicationLogRecordIndicator
+import com.mkx.hrttracker.util.appLanguageLocale
+import io.mockk.MockKMatcherScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +56,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.TextStyle
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.abs
 
@@ -510,7 +519,7 @@ class MedicationLogEntryViewModelTest {
         val medicine = estradiolMedicine
         val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
-        val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30)
+        val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30).atZone(ZoneOffset.UTC)
 
         val uiState = buildQuickLogUiState(
             groupId = groupId,
@@ -545,7 +554,7 @@ class MedicationLogEntryViewModelTest {
             applicationType = MedicationApplicationType.PATCH_OFF,
             doseInstruction = DoseInstruction.Noop,
             medicationCount = 1,
-            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15).atZone(ZoneOffset.UTC),
         )
 
         assertEquals(
@@ -569,7 +578,7 @@ class MedicationLogEntryViewModelTest {
             applicationType = MedicationApplicationType.INJECTION,
             doseInstruction = DoseInstruction.VolumeMl(0.2),
             medicationCount = 1,
-            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15).atZone(ZoneOffset.UTC),
         )
 
         assertTrue(uiState.allowsActualDoseDelta)
@@ -922,14 +931,16 @@ class MedicationLogEntryViewModelTest {
             Duration.ofHours(2),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = nextScheduledFor
+                adjacentScheduledFor = nextScheduledFor,
+                zoneId = ZoneOffset.UTC,
             )
         )
         assertEquals(
             Duration.ofHours(1),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = previousScheduledFor
+                adjacentScheduledFor = previousScheduledFor,
+                zoneId = ZoneOffset.UTC,
             )
         )
         assertTrue(
@@ -938,7 +949,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -947,7 +958,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0, 1).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -956,7 +967,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -965,7 +976,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -974,7 +985,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 10, 59, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 10, 59, 59).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -983,7 +994,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 1).atZone(ZoneOffset.UTC)
             )
         )
     }
@@ -1000,7 +1011,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -1009,7 +1020,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0, 1).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -1018,7 +1029,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 6, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 6, 59).atZone(ZoneOffset.UTC)
             )
         )
     }
@@ -1031,7 +1042,8 @@ class MedicationLogEntryViewModelTest {
             Duration.ofHours(24),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0)
+                adjacentScheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
+                zoneId = ZoneOffset.UTC,
             )
         )
     }
@@ -2323,6 +2335,65 @@ class MedicationLogEntryViewModelTest {
         }
 
     @Test
+    fun saveEntry_namesTheZoneInTheAppLanguage_notThePhones() = runTest(dispatcher) {
+        // The app follows a phone in Japanese, which it has no strings for: it shows English.
+        val phoneLocale = Locale.getDefault()
+        Locale.setDefault(Locale.JAPAN)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        try {
+            val entryId = UUID.randomUUID()
+            val newYork = ZoneId.of("America/New_York")
+            coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(
+                testMedicationLogEntry(
+                    uuid = entryId,
+                    medicine = estradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    sourceGroupUuid = null,
+                    appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant(),
+                    appliedAtTimeZoneId = newYork.id,
+                )
+            )
+            every { medicationGroupRepository.getCachedGroup(any()) } returns null
+            coEvery {
+                medicationLogRepository.saveEntry(
+                    uuid = any(), medicineUuid = any(),
+                    applicationType = any(),
+                    doseInstruction = any(), sourceGroupUuid = any(),
+                    scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+                    count = any(), appliedAtTimeZoneId = any()
+                )
+            } returns Unit
+            coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+            val viewModel = MedicationLogEntryViewModel(
+                medicationLogRepository = medicationLogRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicineStockRepository = medicineStockRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+            )
+            viewModel.initialize(listOf(entryId.toString()))
+            advanceUntilIdle()
+            // A device zone whose offset differs from New York's, so the toast shows.
+            val deviceZone = TimeZone.getDefault()
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"))
+            try {
+                viewModel.saveEntry()
+                advanceUntilIdle()
+            } finally {
+                TimeZone.setDefault(deviceZone)
+            }
+
+            assertEquals(
+                newYork.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+                viewModel.uiState.value.savedCrossZoneZoneText,
+            )
+        } finally {
+            unmockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+            Locale.setDefault(phoneLocale)
+        }
+    }
+
+    @Test
     fun saveEntry_does_not_emit_cross_zone_toast_payload_for_same_zone() = runTest(dispatcher) {
         val entryId = UUID.randomUUID()
         val deviceZone = ZoneId.systemDefault()
@@ -2394,6 +2465,204 @@ class MedicationLogEntryViewModelTest {
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
+
+    @Test
+    fun initializeQuickLog_forTheSameSheetWhileSaving_keepsTheSaveAndWritesOnce() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.now().withSecond(0).withNano(0)
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Evening",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery { anyNewEntrySave() } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        val openSheet = {
+            viewModel.initializeQuickLog(
+                groupId = groupId,
+                scheduledFor = scheduledFor,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                medicationCount = 1,
+            )
+        }
+        openSheet()
+        advanceUntilIdle()
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+
+        // The activity is recreated mid-save; this activity-scoped VM survives and the
+        // same sheet comes back, initializing again on composition entry.
+        openSheet()
+        assertTrue(
+            "the sheet that came back must still show its save running",
+            viewModel.uiState.value.isSaving,
+        )
+        viewModel.saveEntry()
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) { anyNewEntrySave() }
+    }
+
+    @Test
+    fun initialize_forTheSameEntriesWhileDeleting_keepsTheDeleteRunning() = runTest {
+        val entryId = UUID.fromString("1c0b5b52-60a4-4a43-9d36-50e7d7a0f1c1")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        )
+        val deleteStarted = CompletableDeferred<Unit>()
+        val finishDelete = CompletableDeferred<Unit>()
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery { medicationLogRepository.deleteEntries(listOf(entryId)) } coAnswers {
+            deleteStarted.complete(Unit)
+            finishDelete.await()
+        }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+        viewModel.deleteEntry()
+        advanceUntilIdle()
+        deleteStarted.await()
+
+        viewModel.initialize(listOf(entryId.toString()))
+        assertTrue(
+            "the sheet that came back must still show its delete running",
+            viewModel.uiState.value.isDeleting,
+        )
+        finishDelete.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun saveEntry_finishingAfterAnotherSheetOpened_leavesThatSheetAlone() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.now().withSecond(0).withNano(0)
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Evening",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery { anyNewEntrySave() } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+
+        // Another slot's sheet.
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor.plusDays(1),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(
+            "an earlier sheet's save must not close the sheet now open",
+            viewModel.uiState.value.isSaved,
+        )
+        assertEquals(scheduledFor.plusDays(1), viewModel.uiState.value.scheduledFor)
+    }
+
+    @Test
+    fun saveEntry_whenAnotherWriterLoggedTheSlotFirst_closesWithAlreadyLogged() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.now().withSecond(0).withNano(0)
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Evening",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery { anyNewEntrySave() } throws ScheduledDoseAlreadyLoggedException()
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(SaveEntryResult.ALREADY_LOGGED, viewModel.uiState.value.saveEntryResult)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
+    }
+
+    private suspend fun MockKMatcherScope.anyNewEntrySave() = medicationLogRepository.saveEntry(
+        uuid = null,
+        medicineUuid = any(),
+        applicationType = any(),
+        doseInstruction = any(),
+        sourceGroupUuid = any(),
+        scheduleTimeUuid = any(),
+        appliedAt = any(),
+        scheduledFor = any(),
+        count = any(),
+        appliedAtTimeZoneId = any(),
+        doseAmountDelta = any(),
+    )
 }
 
 private fun testMedicationGroup(

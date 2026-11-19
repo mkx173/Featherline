@@ -2,10 +2,10 @@ package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.ScheduledDoseAlreadyLoggedException
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
+import com.mkx.hrttracker.model.medication.normalizeMedicationCount
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
@@ -37,7 +38,6 @@ import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicationLogRecordIndicator
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
-import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
@@ -45,7 +45,7 @@ import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validatedWith
-import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -58,11 +58,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
 
@@ -72,10 +75,16 @@ class MedicationLogEntryViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MedicationLogEntryUiState())
     val uiState: StateFlow<MedicationLogEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
+
+    // The sheet initializes again on every composition entry, also when it comes back
+    // after an activity recreation this activity-scoped VM survives. While its session is
+    // busy, the same sheet keeps it, and a save or delete reports only to its own session.
+    private var session: SheetSession? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
     private var stockProjections: List<MedicineStockProjection> =
@@ -99,27 +108,36 @@ class MedicationLogEntryViewModel @Inject constructor(
     fun previewState(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-        fulfilledSlot: FulfilledScheduledSlot? = null,
+        pendingEntry: MedicationLogEntry? = null,
     ): MedicineStockState? =
-        medicineStockRepository.previewState(medicineUuid, hypotheticalStock, fulfilledSlot)
+        medicineStockRepository.previewState(medicineUuid, hypotheticalStock, pendingEntry)
 
     fun initialize(
         entryIds: List<String>,
         editSnapshot: MedicationLogEntryEditSnapshot? = null,
     ) {
+        val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
+        if (!beginSession(normalizedEntryIds)) {
+            return
+        }
         loadEntryJob?.cancel()
         pendingSave = null
         pendingDelete = null
-        val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
         val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
         val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
         val initialEditingState = matchingEditSnapshot?.toEditingUiState()
         val initialState = initialEditingState
             ?.copy(isLoading = normalizedEntryIds.isNotEmpty())
-            ?: MedicationLogEntryUiState(
-                editingEntryIds = normalizedEntryIds,
-                isLoading = normalizedEntryIds.isNotEmpty()
-            )
+            ?: clock.instant().atZone(ZoneId.systemDefault()).let { now ->
+                MedicationLogEntryUiState(
+                    editingEntryIds = normalizedEntryIds,
+                    appliedDate = now.toLocalDate(),
+                    appliedTime = now.toLocalTime().withSecond(0).withNano(0),
+                    appliedZoneId = now.zone,
+                    appliedOffset = now.offset,
+                    isLoading = normalizedEntryIds.isNotEmpty()
+                )
+            }
         _uiState.value = initialState.withSelectedStockProjection()
 
         if (normalizedEntryIds.isNotEmpty()) {
@@ -144,6 +162,18 @@ class MedicationLogEntryViewModel @Inject constructor(
         sourceGroupPreviousScheduledFor: LocalDateTime? = null,
         sourceGroupNextScheduledFor: LocalDateTime? = null,
     ) {
+        val sessionKey = listOf(
+            groupId,
+            scheduleTimeUuid,
+            scheduledFor,
+            medicine?.uuid,
+            applicationType,
+            doseInstruction,
+            medicationCount,
+        )
+        if (!beginSession(sessionKey)) {
+            return
+        }
         loadEntryJob?.cancel()
         pendingSave = null
         pendingDelete = null
@@ -163,7 +193,7 @@ class MedicationLogEntryViewModel @Inject constructor(
             sourceGroupIsArchived = sourceGroupIsArchived,
             sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
             sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
-            appliedAt = LocalDateTime.now(),
+            appliedAt = clock.instant().atZone(ZoneId.systemDefault()),
             isLoading = cachedGroup == null && !hasSourceGroupSnapshot,
         ).withSelectedStockProjection()
 
@@ -272,11 +302,8 @@ class MedicationLogEntryViewModel @Inject constructor(
         if (currentState.isSaving || currentState.isDeleting || currentState.isSaved) {
             return
         }
-        val appliedAtLocal = LocalDateTime.of(
-            currentState.appliedDate,
-            currentState.appliedTime
-        )
-        val appliedAt = appliedAtLocal.atZone(currentState.appliedZoneId).toInstant()
+        val appliedAtZoned = currentState.appliedAt()
+        val appliedAt = appliedAtZoned.toInstant()
         val appliedAtTimeZoneId = currentState.appliedZoneId.id
         val applicationType = resolvedApplicationType(currentState)
         val preparationType = resolvedPreparationType(currentState)
@@ -301,10 +328,7 @@ class MedicationLogEntryViewModel @Inject constructor(
             return
         }
 
-        if (!skipFulfillmentWarning && currentState.shouldWarnScheduleWillNotBeFulfilled(
-                appliedAtLocal
-            )
-        ) {
+        if (!skipFulfillmentWarning && currentState.shouldWarnScheduleWillNotBeFulfilled()) {
             _uiState.update {
                 it.copy(
                     errorMessageRes = null,
@@ -371,6 +395,7 @@ class MedicationLogEntryViewModel @Inject constructor(
     }
 
     private fun performSave(request: PendingSaveRequest) {
+        val owner = session
         viewModelScope.launch {
             val medicineUuid = if (request.isEditing) {
                 request.lockedMedicineUuid
@@ -422,11 +447,19 @@ class MedicationLogEntryViewModel @Inject constructor(
                 }
             }.fold(
                 onSuccess = { null },
-                onFailure = { SaveEntryResult.FAILURE },
+                onFailure = { failure ->
+                    // Another writer logged the slot while the sheet was open.
+                    if (failure is ScheduledDoseAlreadyLoggedException) {
+                        SaveEntryResult.ALREADY_LOGGED
+                    } else {
+                        SaveEntryResult.FAILURE
+                    }
+                },
             )
-            val isSaved = saveResult == null
+            val isWritten = saveResult == null
+            val isSaved = saveResult != SaveEntryResult.FAILURE
             val isNewInsert = request.editingEntryUuids.isEmpty()
-            val postLogStockWarning = if (isSaved && isNewInsert && medicineUuid != null) {
+            val postLogStockWarning = if (isWritten && isNewInsert && medicineUuid != null) {
                 runCatching {
                     resolvePostLogStockWarning(
                         projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
@@ -440,30 +473,32 @@ class MedicationLogEntryViewModel @Inject constructor(
             } else {
                 null
             }
-            val crossZoneText = if (isSaved) {
+            val crossZoneText = if (isWritten) {
                 val pickerOffset = request.appliedZoneId.rules.getOffset(request.appliedAt)
                 val deviceOffset = ZoneId.systemDefault().rules.getOffset(request.appliedAt)
                 if (pickerOffset == deviceOffset) {
                     null
                 } else {
-                    zoneDisplayName(request.appliedZoneId)
+                    zoneDisplayName(request.appliedZoneId, appLanguageLocale())
                 }
             } else {
                 null
             }
 
-            _uiState.update {
-                val updated = it.copy(
-                    isLoading = false,
-                    isSaving = false,
-                    isSaved = isSaved,
-                    errorMessageRes = null,
-                    saveEntryResult = saveResult,
-                    isScheduleFulfillmentWarningVisible = false,
-                    savedCrossZoneZoneText = crossZoneText,
-                    postLogStockWarning = postLogStockWarning,
-                )
-                if (isSaved) updated else updated.withSelectedStockProjection()
+            if (session === owner) {
+                _uiState.update {
+                    val updated = it.copy(
+                        isLoading = false,
+                        isSaving = false,
+                        isSaved = isSaved,
+                        errorMessageRes = null,
+                        saveEntryResult = saveResult,
+                        isScheduleFulfillmentWarningVisible = false,
+                        savedCrossZoneZoneText = crossZoneText,
+                        postLogStockWarning = postLogStockWarning,
+                    )
+                    if (isSaved) updated else updated.withSelectedStockProjection()
+                }
             }
 
             if (isSaved) {
@@ -503,6 +538,7 @@ class MedicationLogEntryViewModel @Inject constructor(
     }
 
     private fun performDelete(request: PendingDeleteRequest) {
+        val owner = session
         viewModelScope.launch {
             val result = runCatching {
                 medicationLogRepository.deleteEntries(request.editingEntryUuids)
@@ -512,14 +548,16 @@ class MedicationLogEntryViewModel @Inject constructor(
             )
             val isDeleted = result == null
 
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isDeleting = false,
-                    isSaved = isDeleted,
-                    errorMessageRes = null,
-                    deleteEntryResult = result,
-                )
+            if (session === owner) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isDeleting = false,
+                        isSaved = isDeleted,
+                        errorMessageRes = null,
+                        deleteEntryResult = result,
+                    )
+                }
             }
 
             if (isDeleted) {
@@ -548,6 +586,15 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     fun consumePostLogStockWarning() {
         _uiState.update { it.copy(postLogStockWarning = null) }
+    }
+
+    /** Starts a session for the sheet [key], unless that sheet's session is still busy. */
+    private fun beginSession(key: List<Any?>): Boolean {
+        if (session?.key == key && isMedicationLogEntryBusy(_uiState.value)) {
+            return false
+        }
+        session = SheetSession(key)
+        return true
     }
 
     private fun resolvedApplicationType(state: MedicationLogEntryUiState): MedicationApplicationType {
@@ -664,6 +711,9 @@ data class MedicationLogEntryUiState(
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val appliedZoneId: ZoneId = ZoneId.systemDefault(),
+    // Which pass of a repeated fall-back hour the date and time mean: the record's, or the
+    // clock's when the sheet opened. Ignored where the wall time is not ambiguous.
+    val appliedOffset: ZoneOffset? = ZonedDateTime.now(appliedZoneId).offset,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
@@ -744,15 +794,59 @@ data class MedicationLogEntryUiState(
             }
         }
 
-    fun shouldWarnScheduleWillNotBeFulfilled(appliedAt: LocalDateTime): Boolean {
+    /** The date and time drafted, in [appliedZoneId], on [appliedOffset]'s pass of a repeated hour. */
+    fun appliedAt(): ZonedDateTime =
+        ZonedDateTime.ofLocal(LocalDateTime.of(appliedDate, appliedTime), appliedZoneId, appliedOffset)
+
+    fun shouldWarnScheduleWillNotBeFulfilled(): Boolean {
         return shouldWarnScheduleWillNotBeFulfilled(
             sourceGroupUuid = sourceGroupUuid,
             scheduledFor = scheduledFor,
             sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
             sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
-            appliedAt = appliedAt
+            appliedAt = appliedAt()
         )
     }
+}
+
+/**
+ * The plan record a save of this new log would write, for the stock preview; null for an
+ * edit, a log with no plan slot, or a draft that doesn't save yet.
+ */
+internal fun MedicationLogEntryUiState.previewPendingEntry(): MedicationLogEntry? {
+    if (isEditing) return null
+    val medicine = resolvedMedicine ?: return null
+    val groupUuid = sourceGroupUuid ?: return null
+    val slotScheduledFor = scheduledFor ?: return null
+    return runCatching {
+        val preparationType = medicine.preparation.type
+        val applicationType = resolvedApplicationTypeForDose(
+            preparationType = preparationType,
+            doseInstructionDraft = doseInstructionDraft,
+        )
+        MedicationLogEntry(
+            uuid = UUID(0L, 0L),
+            medicine = medicine,
+            category = medicine.category,
+            applicationType = applicationType,
+            doseInstruction = if (applicationType == MedicationApplicationType.PATCH_OFF) {
+                DoseInstruction.Noop
+            } else {
+                doseInstructionDraft.toDoseInstruction()
+            },
+            equivalentE2Mg = null,
+            sourceGroupUuid = groupUuid,
+            appliedAt = appliedAt().toInstant(),
+            appliedAtTimeZoneId = appliedZoneId.id,
+            scheduledFor = slotScheduledFor,
+            count = resolvedMedicationCountForSave(
+                applicationType = applicationType,
+                countText = countText,
+                preparationType = preparationType,
+            ),
+            scheduleTimeUuid = scheduleTimeUuid,
+        )
+    }.getOrNull()
 }
 
 data class MedicationLogEntryQuickLogRequest(
@@ -802,8 +896,14 @@ private data class PendingDeleteRequest(
     val editingEntryUuids: List<UUID>,
 )
 
+// Compared by identity: reopening the same sheet later is a new session.
+private class SheetSession(val key: List<Any?>)
+
 enum class SaveEntryResult {
     FAILURE,
+
+    /** Nothing written: the slot already had this dose, so the sheet closes. */
+    ALREADY_LOGGED,
 }
 
 enum class DeleteEntryResult {
@@ -842,7 +942,9 @@ internal fun buildEditingUiState(
 ): MedicationLogEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
-    val appliedAtLocal = appliedAtAsLocalDateTime(representativeEntry)
+    val appliedZoneId = displayZoneOf(representativeEntry)
+    val appliedAtZoned = representativeEntry.appliedAt.atZone(appliedZoneId)
+    val appliedAtLocal = appliedAtZoned.toLocalDateTime()
     val matchingSourceGroup = sourceGroup?.takeIf { group ->
         group.uuid == representativeEntry.sourceGroupUuid
     }
@@ -863,13 +965,21 @@ internal fun buildEditingUiState(
         sourceGroupIsArchived = matchingSourceGroup?.isArchived()
             ?: (hasMatchingSourceGroupSnapshot && sourceGroupIsArchived),
         scheduledFor = representativeEntry.scheduledFor,
+        // In the record's zone, as the status readers pick them (isEntryWithinScheduleFulfillmentWindow).
+        // A loaded plan's neighbours win even when null: the snapshot's were picked in the device zone.
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
-                ?: sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            if (matchingSourceGroup != null) {
+                matchingSourceGroup.previousScheduledForBefore(scheduledFor, zoneId = appliedZoneId)
+            } else {
+                sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            }
         },
         sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
-                ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            if (matchingSourceGroup != null) {
+                matchingSourceGroup.nextScheduledForAfter(scheduledFor, zoneId = appliedZoneId)
+            } else {
+                sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            }
         },
         recordIndicator = medicationLogRecordIndicator(representativeEntry),
         countText = normalizeMedicationCount(
@@ -881,7 +991,8 @@ internal fun buildEditingUiState(
         // entries with differing deltas, so the read-only line is suppressed.
         doseAmountDelta = representativeEntry.doseAmountDelta
             .takeIf { editableEntries.size == 1 },
-        appliedZoneId = displayZoneOf(representativeEntry),
+        appliedZoneId = appliedZoneId,
+        appliedOffset = appliedAtZoned.offset,
         appliedDate = appliedAtLocal.toLocalDate(),
         appliedTime = appliedAtLocal.toLocalTime().withSecond(0).withNano(0)
     )
@@ -961,7 +1072,7 @@ internal fun buildQuickLogUiState(
     sourceGroupIsArchived: Boolean = false,
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
-    appliedAt: LocalDateTime,
+    appliedAt: ZonedDateTime,
     isLoading: Boolean = false,
 ): MedicationLogEntryUiState {
     return MedicationLogEntryUiState(
@@ -994,6 +1105,8 @@ internal fun buildQuickLogUiState(
         ).toString(),
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0),
+        appliedZoneId = appliedAt.zone,
+        appliedOffset = appliedAt.offset,
         isLoading = isLoading,
     )
 }
@@ -1035,7 +1148,7 @@ internal fun shouldWarnScheduleWillNotBeFulfilled(
     scheduledFor: LocalDateTime?,
     sourceGroupPreviousScheduledFor: LocalDateTime?,
     sourceGroupNextScheduledFor: LocalDateTime?,
-    appliedAt: LocalDateTime,
+    appliedAt: ZonedDateTime,
 ): Boolean {
     if (sourceGroupUuid == null || scheduledFor == null) {
         return false

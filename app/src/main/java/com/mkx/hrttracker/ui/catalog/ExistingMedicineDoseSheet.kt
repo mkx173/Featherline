@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -254,6 +255,10 @@ fun ExistingMedicineDoseSheet(
             }
         },
     ) {
+        // Back while it saves does nothing: in here, on the sheet window's dispatcher, ahead of the
+        // sheet's own handler, which would shrink the sheet with the swipe and, with the hide
+        // refused, leave it shrunk.
+        BackHandler(enabled = isSaving) { }
         MedicationEditorContent(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
@@ -347,6 +352,7 @@ fun ExistingMedicineDoseSheet(
                 appliedDateText = dateFormatter(manualLogUiState.appliedDate),
                 appliedTimeText = manualLogUiState.appliedTime.format(timeFormatter),
                 appliedZoneId = manualLogUiState.appliedZoneId,
+                appliedOffset = manualLogUiState.appliedOffset,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
             )

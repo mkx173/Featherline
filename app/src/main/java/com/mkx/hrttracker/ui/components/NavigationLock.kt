@@ -60,8 +60,11 @@ class NavigationLockState {
     /**
      * [dismissModals], then waits for every modal window to leave, for a deep link to navigate
      * once none is left over the page it leaves: a sheet closes a frame or more after the request.
+     * First, though, for the app lock ([isAppLocked]) to go, which a leave restored after a
+     * recreation can come back under: the windows hidden there would close, drafts and all.
      */
-    suspend fun dismissModalsAndAwait() {
+    suspend fun dismissModalsAndAwait(isAppLocked: () -> Boolean = { false }) {
+        snapshotFlow(isAppLocked).first { !it }
         dismissModals()
         // ponytail: one that won't close (none should while nothing is busy) holds the deep link
         // only this long, then is left to close with its page.

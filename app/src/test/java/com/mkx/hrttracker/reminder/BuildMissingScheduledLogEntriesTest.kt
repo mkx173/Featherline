@@ -35,7 +35,7 @@ class BuildMissingScheduledLogEntriesTest {
             group = group,
             slot = slot,
             entries = emptyList(),
-            appliedAt = scheduledAt.plusMinutes(1),
+            appliedAt = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         assertEquals(1, result.size)
@@ -57,7 +57,7 @@ class BuildMissingScheduledLogEntriesTest {
             group = group,
             slot = slot,
             entries = emptyList(),
-            appliedAt = scheduledAt.plusMinutes(1),
+            appliedAt = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         // Archive state is intentionally not gated here — callers decide. Both explicit
@@ -94,7 +94,7 @@ class BuildMissingScheduledLogEntriesTest {
             group = group,
             slot = slot,
             entries = listOf(existingEntry),
-            appliedAt = scheduledAt.plusMinutes(5),
+            appliedAt = testInstant(scheduledAt.plusMinutes(5)),
         )
 
         assertTrue(result.isEmpty())
@@ -128,7 +128,7 @@ class BuildMissingScheduledLogEntriesTest {
             group = group,
             slot = slot,
             entries = listOf(lateEntry),
-            appliedAt = scheduledAt.plusHours(14),
+            appliedAt = testInstant(scheduledAt.plusHours(14)),
         )
 
         assertTrue(result.isEmpty())
@@ -159,7 +159,7 @@ class BuildMissingScheduledLogEntriesTest {
             group = group,
             slot = slot,
             entries = listOf(partialLateEntry),
-            appliedAt = scheduledAt.plusHours(14),
+            appliedAt = testInstant(scheduledAt.plusHours(14)),
         )
 
         assertEquals(1, result.size)

@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,7 +18,6 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Locale
 import java.util.UUID
 
 class BackupRestoreValidationTest {
@@ -193,10 +191,6 @@ class BackupRestoreValidationTest {
 
         assertEquals(DarkModeOption.DARK, validatedSnapshot.settings.darkModeOption)
         assertEquals(
-            AppLockGracePeriodOption.FIVE_MINUTES,
-            validatedSnapshot.settings.appLockGracePeriodOption
-        )
-        assertEquals(
             AppLanguageOption.SIMPLIFIED_CHINESE,
             validatedSnapshot.settings.appLanguageOption
         )
@@ -279,17 +273,15 @@ class BackupRestoreValidationTest {
     }
 
     @Test
-    fun toValidatedSnapshot_fallsBackToSystemLanguageForUnknownAppLanguageOption() {
-        // Old backups carry the retired FOLLOW_SYSTEM value, and backups from newer
-        // releases may carry language options this version does not know; neither may
-        // reject the whole backup — the language falls back to the system default.
-        val previousDefault = Locale.getDefault()
-        Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
-        try {
+    fun toValidatedSnapshot_followsTheSystemForFollowSystemOrAnUnknownAppLanguageOption() {
+        // FOLLOW_SYSTEM restores following the system (null). A backup from a newer release
+        // may carry a language this version does not know: it must not reject the whole
+        // backup, and follows the system too.
+        for (name in listOf(FOLLOW_SYSTEM_APP_LANGUAGE, "FRENCH")) {
             val snapshot = BackupSnapshot(
                 exportedAtEpochMillis = 1L,
                 app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-                settings = baselineSettings().copy(appLanguageOption = "FOLLOW_SYSTEM"),
+                settings = baselineSettings().copy(appLanguageOption = name),
                 userProfile = baselineUserProfile(),
                 medicines = emptyList(),
                 medicationGroups = emptyList(),
@@ -301,13 +293,27 @@ class BackupRestoreValidationTest {
             val validatedSnapshot =
                 snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
-            assertEquals(
-                AppLanguageOption.SIMPLIFIED_CHINESE,
-                validatedSnapshot.settings.appLanguageOption,
-            )
-        } finally {
-            Locale.setDefault(previousDefault)
+            assertNull(name, validatedSnapshot.settings.appLanguageOption)
         }
+    }
+
+    @Test
+    fun toValidatedSnapshot_restoresCzech() {
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 1L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings().copy(appLanguageOption = "CZECH"),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertEquals(AppLanguageOption.CZECH, validatedSnapshot.settings.appLanguageOption)
     }
 
     @Test
@@ -1083,6 +1089,128 @@ class BackupRestoreValidationTest {
         )
 
         assertRejects(snapshot, "must reference an imported medicine")
+    }
+
+    // Two rows of one signature whose counts add up past Int.MAX: the sum wraps, Home throws and
+    // the reminder pass never returns. Rows of another signature count apart.
+    @Test
+    fun toValidatedSnapshot_rejectsADoseCountTotalPastIntMax() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000009c0")
+        fun item(
+            index: Int,
+            count: Int,
+            applicationType: String = "ORAL",
+            denominator: Int = 1,
+        ) = BackupMedicationGroupItemSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009c$index",
+            count = count,
+            medicineUuid = medicineUuid.toString().takeUnless { applicationType == "PATCH_OFF" },
+            applicationType = applicationType,
+            doseInstructionKind = if (applicationType == "PATCH_OFF") "NOOP" else "TABLET_FRACTION",
+            tabletFractionNumerator = 1.takeUnless { applicationType == "PATCH_OFF" },
+            tabletFractionDenominator = denominator.takeUnless { applicationType == "PATCH_OFF" },
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+        )
+        fun snapshot(vararg items: BackupMedicationGroupItemSnapshot) = validationSnapshot(
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = "00000000-0000-0000-0000-0000000009cf",
+                    name = "Group",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+                    ),
+                    medications = items.toList(),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+        )
+
+        assertRejects(snapshot(item(1, Int.MAX_VALUE), item(2, 1)), "dose count")
+        snapshot(item(1, Int.MAX_VALUE - 1), item(2, 1)).toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        snapshot(item(1, Int.MAX_VALUE), item(2, 1, applicationType = "SUBLINGUAL"))
+            .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        // A whole tablet and half a tablet are two doses.
+        snapshot(item(1, Int.MAX_VALUE), item(2, 1, denominator = 2))
+            .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        // Every Remove patch row is one dose.
+        assertRejects(snapshot(item(1, Int.MAX_VALUE, "PATCH_OFF"), item(2, 1, "PATCH_OFF")), "dose count")
+    }
+
+    // A slot time, note or anchor date far past four-digit years: no writer leaves them, and
+    // they are read as instants.
+    @Test
+    fun toValidatedSnapshot_rejectsImpossibleDoseSlotNoteAndAnchorDates() {
+        val farFuture = "+300000000-01-01"
+        val log = importedPatchOffLogSnapshot(
+            logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009a1"),
+            externalId = "patch-off-9a1",
+        )
+        assertRejects(validationSnapshot(medicationLogs = listOf(log.copy(scheduledForIso = "${farFuture}T08:00"))), "Impossible")
+        val note = BackupNoteSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009a3",
+            dateIso = farFuture,
+            text = "Note",
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+        )
+        assertRejects(validationSnapshot().copy(notes = listOf(note)), "Impossible")
+        val anchor = BackupTrackedDateSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009a4",
+            name = "Anchor",
+            iconKey = "STAR",
+            dateIso = "-0001-12-31",
+            paletteKey = null,
+            pinnedOrder = null,
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+        )
+        assertRejects(validationSnapshot().copy(trackedDates = listOf(anchor)), "Impossible")
+    }
+
+    // Released builds stored an imported time in seconds or milliseconds as hours unchecked, so
+    // the user's own backup can hold a dose or lab in the year 205 million: it must restore.
+    @Test
+    fun toValidatedSnapshot_restoresAnImportedDoseAndLabFarOutOfRange() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b0")
+        val farMillis = Math.round(1.8e12 * 3_600_000.0)
+        val snapshot = validationSnapshot(
+            medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+            medicationLogs = listOf(
+                importedPillLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b1"),
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-9b1",
+                ).copy(appliedAtEpochMillis = farMillis),
+                importedPatchOffLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b2"),
+                    externalId = "patch-off-9b2",
+                ).copy(appliedAtEpochMillis = Math.round(-2e7 * 3_600_000.0)),
+            ),
+            bloodTestPanels = listOf(
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b3"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b4"),
+                    panelKey = 91L,
+                    resultExternalId = "result-9b4",
+                ).copy(collectedAtInstantEpochMillis = Math.round(1.8e9 * 3_600_000.0)),
+            ),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertTrue(farMillis in result.medicationLogs.map { it.appliedAtEpochMillis })
+        assertEquals(Math.round(1.8e9 * 3_600_000.0), result.bloodTestPanels.single().collectedAtInstantEpochMillis)
     }
 
     private fun baselineSettings(): BackupSettingsSnapshot = BackupSettingsSnapshot(

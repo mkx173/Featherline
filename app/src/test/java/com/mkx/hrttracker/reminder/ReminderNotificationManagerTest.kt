@@ -16,9 +16,10 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.uses24HourTimeFormat
-import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -33,12 +34,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 
 class ReminderNotificationManagerTest {
     private val context: Context = mockk(relaxed = true)
     private val resources: Resources = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+    private val settingsRepository: SettingsRepository = mockk()
     private val toast: Toast = mockk(relaxed = true)
     private lateinit var notificationManager: ReminderNotificationManager
 
@@ -62,11 +65,12 @@ class ReminderNotificationManagerTest {
             true
         }
         every { context.resources } returns resources
-        // showDoseReminderNotification pins content to the app language via
-        // context.withAppLanguage(); that locale machinery is verified separately,
-        // so here it resolves to the same mock context.
+        // That locale machinery is verified separately (ReminderNotificationLanguageTest), so
+        // here the app language resolves to the mock context.
+        every { settingsRepository.appLanguageTag() } returns "en"
+        every { context.createConfigurationContext(any()) } returns context
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
-        every { context.withAppLanguage() } returns context
+        every { any<Context>().currentAppLocale() } returns Locale.ENGLISH
         // Reads the device's 12/24-hour setting through Resources.getSystem(),
         // which is null on the JVM.
         mockkStatic("com.mkx.hrttracker.util.AppDateTimeFormattersKt")
@@ -80,7 +84,6 @@ class ReminderNotificationManagerTest {
         every { anyConstructed<NotificationCompat.Builder>().setSubText(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setPriority(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setContentIntent(any()) } answers { self as NotificationCompat.Builder }
-        every { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setStyle(any()) } answers { self as NotificationCompat.Builder }
         every {
             anyConstructed<NotificationCompat.Builder>().addAction(
@@ -100,6 +103,7 @@ class ReminderNotificationManagerTest {
         notificationManager = spyk(
             ReminderNotificationManager(
                 context = context,
+                settingsRepository = settingsRepository,
                 diagnosticsLogger = diagnosticsLogger,
             )
         )
@@ -139,7 +143,7 @@ class ReminderNotificationManagerTest {
             )
         } throws SecurityException("revoked")
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle)
 
         verify {
             diagnosticsLogger.warning(
@@ -210,12 +214,13 @@ class ReminderNotificationManagerTest {
     @Test
     fun stockWarningToasts_resolveStringsThroughAppLanguageContext() {
         // Regression: below API 33 the injected ApplicationContext stays on the system
-        // locale, so a post-log toast must resolve its text through context.withAppLanguage()
-        // rather than the plain context, or it shows in the system language even when the
-        // user picked a different app language.
+        // locale, so a post-log toast must resolve its text through a context in the app
+        // language rather than the plain context, or it shows in the system language even
+        // when the user picked a different app language.
         val localizedContext: Context = mockk(relaxed = true)
         val localizedResources: Resources = mockk(relaxed = true)
-        every { context.withAppLanguage() } returns localizedContext
+        every { settingsRepository.appLanguageTag() } returns "zh-Hans"
+        every { context.createConfigurationContext(any()) } returns localizedContext
         every { localizedContext.resources } returns localizedResources
         every {
             localizedResources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)
@@ -260,6 +265,49 @@ class ReminderNotificationManagerTest {
     }
 
     @Test
+    fun showDoseReminderNotification_contentIntentReusesTheRunningTask() {
+        // A tap must reach a running MainActivity through onNewIntent, where the Home
+        // deep link asks a dirty plan or calibration editor before leaving. CLEAR_TASK
+        // finishes the activity, and the editors' ViewModels with it, before that guard
+        // can run. SINGLE_TOP | CLEAR_TOP is the reuse the widget rows already use.
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle)
+
+        val flags = mutableListOf<Int>()
+        verify { anyConstructed<Intent>().setFlags(capture(flags)) }
+        val contentFlags = flags.single()
+        assertEquals(
+            "The content intent must not clear the task",
+            0,
+            contentFlags and Intent.FLAG_ACTIVITY_CLEAR_TASK,
+        )
+        val reuse = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        assertEquals(
+            "The content intent must deliver to the running MainActivity",
+            reuse,
+            contentFlags and reuse,
+        )
+        assertEquals(
+            "A notification starts outside any activity, so it needs NEW_TASK",
+            Intent.FLAG_ACTIVITY_NEW_TASK,
+            contentFlags and Intent.FLAG_ACTIVITY_NEW_TASK,
+        )
+    }
+
+    @Test
     fun showDoseReminderNotification_addsScheduledHighlightTargetsToContentIntent() {
         val slot = MedicationReminderSlot(
             groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
@@ -275,7 +323,7 @@ class ReminderNotificationManagerTest {
         every { notifManagerCompat.areNotificationsEnabled() } returns true
         every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle)
 
         verify {
             anyConstructed<Intent>().putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
@@ -288,5 +336,118 @@ class ReminderNotificationManagerTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun showDoseReminderNotification_hasASwipeDeleteIntentAndASkipAction() {
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle, silent = true)
+
+        verify { anyConstructed<NotificationCompat.Builder>().setDeleteIntent(any()) }
+        verify { anyConstructed<Intent>().setAction(ACTION_MEDICATION_REMINDER_DISMISSED) }
+        verify { anyConstructed<Intent>().setAction(ACTION_MEDICATION_REMINDER_SKIP) }
+        verify { anyConstructed<NotificationCompat.Builder>().setSilent(true) }
+    }
+
+    @Test
+    fun showNextReminderToast_clearAllShowsOneToastForTheEarliestAlert_thenThrottles() {
+        var clock = 10_000L
+        notificationManager.elapsedRealtime = { clock }
+        val delayed = mutableListOf<Runnable>()
+        every { anyConstructed<Handler>().postDelayed(any(), NEXT_REMINDER_TOAST_WINDOW_MS) } answers {
+            delayed += firstArg<Runnable>()
+            true
+        }
+        every { context.getString(R.string.reminder_notification_next, *anyVararg()) } answers {
+            "next ${(args[1] as Array<*>)[0]}"
+        }
+        val tomorrow = java.time.Instant.now().plus(java.time.Duration.ofDays(1))
+        val soon = java.time.Instant.now().plus(java.time.Duration.ofMinutes(5))
+        fun textFor(alertAt: java.time.Instant) = nextReminderToastText(
+            context,
+            LocalDateTime.ofInstant(alertAt, java.time.ZoneId.systemDefault()),
+            java.time.LocalDate.now(),
+            is24Hour = false,
+        )
+
+        // Clear all: three dismissals, handled one after another, the first naming tomorrow.
+        notificationManager.showNextReminderToast(tomorrow)
+        clock += 50
+        notificationManager.showNextReminderToast(soon)
+        clock += 50
+        notificationManager.showNextReminderToast(tomorrow.plusSeconds(60))
+        verify(exactly = 0) { toast.show() }
+        delayed.single().run()
+
+        verify(exactly = 1) { toast.show() }
+        val soonText = textFor(soon)
+        verify { Toast.makeText(context, soonText, Toast.LENGTH_SHORT) }
+
+        // A swipe within 2 s of the window's opening shows none; one after shows its own.
+        clock += 1_000
+        notificationManager.showNextReminderToast(soon)
+        assertEquals(1, delayed.size)
+        clock += NEXT_REMINDER_TOAST_THROTTLE_MS
+        notificationManager.showNextReminderToast(tomorrow)
+        delayed.last().run()
+        verify(exactly = 2) { toast.show() }
+        val tomorrowText = textFor(tomorrow)
+        verify { Toast.makeText(context, tomorrowText, Toast.LENGTH_SHORT) }
+    }
+
+    @Test
+    fun nextReminderToastText_namesTheTimeToday_elseTheDateAndTime_withTheYearOnlyForAnotherYear() {
+        val today = java.time.LocalDate.of(2026, 11, 12)
+        every { context.getString(R.string.reminder_notification_next, *anyVararg()) } answers {
+            "Next reminder: ${(args[1] as Array<*>)[0]}"
+        }
+
+        assertEquals("Next reminder: 08:15", nextReminderToastText(context, today.atTime(8, 15), today, is24Hour = true))
+        // No "tomorrow".
+        assertEquals(
+            "Next reminder: Nov 13 · 08:00",
+            nextReminderToastText(context, today.plusDays(1).atTime(8, 0), today, is24Hour = true),
+        )
+        assertEquals(
+            "Next reminder: Jan 1, 2027 · 08:15",
+            nextReminderToastText(context, java.time.LocalDate.of(2027, 1, 1).atTime(8, 15), today, is24Hour = true),
+        )
+    }
+
+    @Test
+    fun showDoseReminderNotification_isAReminder_andATapOnTheBodyLeavesIt() {
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle)
+
+        // Do Not Disturb's "allow reminders" lets it through (R9).
+        verify { anyConstructed<NotificationCompat.Builder>().setCategory(NotificationCompat.CATEGORY_REMINDER) }
+        // On the lock screen the tap asks to unlock first, and the reminder must still be there (R3).
+        verify(exactly = 0) { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) }
     }
 }

@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
@@ -36,7 +38,6 @@ import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
-import com.mkx.hrttracker.ui.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -155,6 +156,10 @@ fun CreateMedicineThenDoseSheet(
             }
         },
     ) {
+        // Back while it saves does nothing: in here, on the sheet window's dispatcher, ahead of the
+        // sheet's own handler, which would shrink the sheet with the swipe and, with the hide
+        // refused, leave it shrunk.
+        BackHandler(enabled = isSheetLocked) { }
         // The dose instruction form may render a text field (volumeMl /
         // weightGrams) just below the create-medicine fields. When it does,
         // share a FocusRequester so the create form's last IME Next jumps
@@ -247,6 +252,7 @@ fun CreateMedicineThenDoseSheet(
                 appliedDateText = dateFormatter(uiState.appliedDate),
                 appliedTimeText = uiState.appliedTime.format(timeFormatter),
                 appliedZoneId = uiState.appliedZoneId,
+                appliedOffset = uiState.appliedOffset,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
             )

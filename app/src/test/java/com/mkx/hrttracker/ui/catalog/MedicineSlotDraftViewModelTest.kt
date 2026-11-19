@@ -8,6 +8,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,10 +23,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -205,6 +209,38 @@ class MedicineSlotDraftViewModelTest {
         assertTrue(viewModel.uiState.value.isSaved)
         assertEquals(appliedDate, viewModel.uiState.value.appliedDate)
         assertEquals(appliedTime, viewModel.uiState.value.appliedTime)
+    }
+
+    // New York, 2026-11-01: 01:00-02:00 happens twice. A log opened at the second 01:40
+    // (06:40Z) and saved untouched is stamped then, not an hour earlier.
+    @Test
+    fun saveManualLog_openedOnTheSecondPassOfTheRepeatedHour_savesThatPass() = runTest {
+        val secondPass0140 = Instant.parse("2026-11-01T06:40:00Z")
+        val appliedAt = slot<Instant>()
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(), any(), any(), any(), any(), any(), capture(appliedAt), any(), any(), any(), any(),
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicineSlotDraftViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            initialAppliedZoneId = ZoneId.of("America/New_York"),
+            clock = Clock.fixed(secondPass0140, ZoneOffset.UTC),
+        )
+        assertEquals(LocalTime.of(1, 40), viewModel.uiState.value.appliedTime)
+
+        viewModel.saveManualLog(
+            medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f0aa"),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            count = 1,
+        )
+        advanceUntilIdle()
+
+        assertEquals(secondPass0140, appliedAt.captured)
     }
 
     @Test

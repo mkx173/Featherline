@@ -56,7 +56,7 @@ are organized by role:
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
 - [`reminder`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
-  capability reconciliation, notification text and channels. 18 files;
+  capability reconciliation, notification text and channels. 15 files;
   documented in detail in [reminders.md](reminders.md).
 - [`startup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/startup) — Hilt-eager startup
   preloader and timing instrumentation. Two files.
@@ -174,7 +174,7 @@ entities stay inside `data/`.
 [`data/local`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 13 `@Entity` data classes, the 8 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 10 (the medicine-identity refactor reset the
+current schema is version 12 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
 and `MIGRATION_3_4` then added the stock columns on `medicines`,
 `MIGRATION_4_5` added the `doseAmountDelta` column,
@@ -182,8 +182,11 @@ and `MIGRATION_3_4` then added the stock columns on `medicines`,
 index, `MIGRATION_6_7` added external-import provenance,
 `MIGRATION_7_8` added the `tracked_dates` and `notes` journal tables,
 `MIGRATION_8_9` added the `heroBackgroundKey` column to
-`tracked_dates`, and `MIGRATION_9_10` added the
-`e2_calibration_metadata` table).
+`tracked_dates`, `MIGRATION_9_10` added the
+`e2_calibration_metadata` table, `MIGRATION_10_11` added the Health
+Connect `weightMeasuredAtEpochMillis` column on `user_profile`, and
+`MIGRATION_11_12` added each plan's `dayEndsAtFourAm` night-owl column
+on `medication_groups`).
 See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
@@ -413,6 +416,21 @@ is no longer the current back-stack destination its open state is
 cleared via `onDismissRequest` (per-route signal provided by the
 NavHost) so it cannot reappear on the next visit.
 
+A deep link (a reminder's or a widget row's tap to its dose; an anchor
+shortcut's or anchor widget's tap to milestones, the same
+`EXTRA_OPEN_MILESTONES` extra from `anchorOpenMilestonesIntent`) waits
+while a write holds the lock (`isBusy`) or the app lock is up
+(`homeDeepLinkNavigationAction`, `milestonesDeepLinkWaits`). A Home
+deep link leaving a page with unsaved edits asks first
+(`unsavedChanges.leaveBackStack`) and is dropped, highlight included,
+if the user keeps editing; otherwise open modal windows close
+(`dismissModalsAndAwait`) before it navigates.
+`MainActivity.onCreate` follows the deep link in its launch intent only
+on a cold start (`parsesLaunchIntent`): an activity restored after
+process death or a configuration change, or a Recents relaunch
+(`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`), would otherwise replay the
+task's old one; a fresh tap arrives through `onNewIntent`.
+
 Transition motion is centralized in
 [`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
 The four `NavHost` transition slots
@@ -482,8 +500,9 @@ reads Room to build them.
   (`HomeSnapshotGenerationStore`, mirrored in memory as `generation`),
   runs the write, and asks the worker for a run. Nothing is cleared: the
   published state stays for the screens already showing it, but it is
-  no longer current. `invalidate()` does the same with no write, for the
-  journal's hero anchor, which `JournalRepository` observes;
+  no longer current. `invalidate()` does the same with no write; nothing in
+  production calls it now that tracked-date writes go through the gate
+  themselves;
   `retryCalibration()`, the calibration page's Try again, also raises
   the requested fit epoch.
 - **The worker.** One coroutine drains a conflated request channel, so
@@ -518,23 +537,33 @@ reads Room to build them.
   disk load, which seeds each part only from a file that is valid at the
   durable generation, and each publish replaces both parts at once, so a
   reader never sees Home data from one run beside E2 inputs from
-  another. A state is current while its generation equals the durable
-  one (`currentCache`, `currentState()`).
+  another. A state is handed out as current (`currentCache`,
+  `currentState()`) while its generation equals the durable one and its
+  Home data passes the load's zone and date rule at now: the device's
+  zone, and today neither before its anchor date nor more than ten days
+  after it. A state that fails it (the clock set back past its date, or
+  another zone, before the time-change run publishes, or after that run
+  failed for good) is withheld, and a run is asked for; Home's screen
+  then reads Room, and the widget waits for the run.
 - **Triggers.** A run is asked for by each gated mutation; by the load,
   when a part is missing; by an estimate observation whose inputs aren't
-  current, while the worker isn't `rebuilding`; and by a widget refresh without
-  a current state that has both parts. Requests carry nothing: a run reads everything it needs
-  itself. Nothing checks the date or the zone in memory, and no
-  in-process ticker watches them: Home data goes invalid by date only
-  after ten days, and the date and zone broadcasts ask for the run that
-  replaces both parts. `WidgetDateReceiver` (the widget's midnight
+  current, while the worker isn't `rebuilding`; by the handout itself, when
+  it withholds a state by the zone and date rule, while the worker isn't
+  `rebuilding`; and by a widget refresh without a current state that has
+  both parts. Requests carry nothing: a run reads everything it needs
+  itself. No in-process ticker watches the date or the zone: the date
+  and zone broadcasts ask for the run that replaces both parts, and the
+  handout applies the date rule only when it is read. `WidgetDateReceiver` (the widget's midnight
   alarm, boot, date, time and zone changes) waits for `rebuildNow()`
   within its broadcast budget, and `MedicationReminderRescheduleReceiver`
   (boot, time and zone changes, package replaced) calls
   `requestRebuild()`. The notification's "Log now" and the widget
   quick-log wait for `rebuildNow()` too, so the next open finds the
   estimate warmed, and the 15-minute widget worker waits for one when its
-  rows are stale and there is no current state with both parts.
+  rows are stale and there is no current state with both parts, and,
+  whatever its rows, when Home's cache is behind a write or missing a
+  part while the worker isn't `rebuilding` (the worker gave up after its
+  retries).
   `rebuildNow()` returns once a run that started after the call has
   published, its warm-up included, or failed. A run carries a newer
   generation only after a mutation, so the screens treat any other run
@@ -542,7 +571,11 @@ reads Room to build them.
 
 The three files use the same `HomeSnapshotCrypto` key (alias
 `hrt_home_snapshot_key`) and are excluded from backup, along with the
-durable generation in `home_snapshot_metadata.preferences_pb`:
+durable generation in `home_snapshot_metadata.preferences_pb`. Beside the
+generation that file keeps a random epoch, made whenever the file has none:
+at install, and after its corruption handler empties it, which also starts
+the generation again from 0. Each part carries the epoch it was built under,
+so a part from before such a reset never matches the new generation 0.
 
 - [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
   persists Home data, `HomeSnapshotRecord`, in `home_snapshot.pb`: the
@@ -550,12 +583,12 @@ durable generation in `home_snapshot_metadata.preferences_pb`:
   the latest antiandrogen doses, the profile, the stock-tracked medicines
   and the scheduled doses logged in the stock window, the hero anchor and
   the latest estradiol entry. The codec is at
-  `SNAPSHOT_CODEC_VERSION = 31` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 32` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 9`. It is valid when the schema is
-  current, its generation is the durable one, its zone is the device's,
-  and today is within ten days of its anchor date.
+  current, its epoch and generation are the durable ones, its zone is the
+  device's, and today is within ten days of its anchor date.
 - It persists the E2 inputs, `E2InputsRecord`, in `home_e2_inputs.pb`,
-  with its own codec, `E2_INPUTS_CODEC_VERSION = 4`: the logged estradiol
+  with its own codec, `E2_INPUTS_CODEC_VERSION = 5`: the logged estradiol
   doses from 17 + 180 days back, with no upper bound, so one read serves
   every chart option and the calibration page; the active groups with an
   estradiol dose, whose slots after now are Home's planned doses; the
@@ -596,7 +629,9 @@ start. v20 appends external-import medicine payloads, v21 medication-log
 import provenance, and v22 the cached Home hero anchor. v23 through v27
 carried Home's calibrated curve, band and status, and v28 what they are
 derived from instead. v29 holds Home data only: the E2 inputs and the fit
-moved to their own file, and the widget's projection went.
+moved to their own file, and the widget's projection went. v32 (and E2
+inputs v5) add the metadata epoch, so files from before it read as
+missing and the first run rebuilds both, the fit included.
 
 [`E2EstimateRepository`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/E2EstimateRepository.kt)
 derives the E2 estimates from the published E2 inputs and the clock with

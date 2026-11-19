@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
 import org.junit.Assert.assertEquals
@@ -166,6 +167,71 @@ class HrtTrackerNavHostTest {
                 isBusy = true,
             )
         )
+    }
+
+    @Test
+    fun homeDeepLinkNavigationAction_waitsWhileTheAppIsLocked() {
+        // Neither asks over the lock screen whether to discard an editor's changes, nor closes
+        // the windows over Home: the link waits for the unlock.
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.SettingsCalibration.route,
+                isAppLocked = true,
+            )
+        )
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.Main.route,
+                isAppLocked = true,
+            )
+        )
+    }
+
+    @Test
+    fun milestonesDeepLinkWaits_whileTheAppIsLocked() {
+        // Leaving closes the windows over the page, here the ones hidden under the lock screen,
+        // and with them their drafts: the link waits for the unlock.
+        assertTrue(
+            "The milestones deep link left while the app was locked",
+            milestonesDeepLinkWaits(isBusy = false, isAppLocked = true),
+        )
+        assertFalse(milestonesDeepLinkWaits(isBusy = false, isAppLocked = false))
+    }
+
+    @Test
+    fun waitingHomeDeepLink_stillGoesHome_onceNothingIsLeftToDiscard() {
+        // The editor asking finished, its ViewModel cleared, while the prompt was up: the user
+        // didn't keep editing, and the link they tapped still goes home.
+        val unsavedChanges = UnsavedChangesState()
+        val editor = Any().also { unsavedChanges.hostInBackStack(it); unsavedChanges.update(it, dirty = true) }
+        val leave = unsavedChanges.leaveBackStack { true }
+        unsavedChanges.remove(editor)
+        assertTrue(
+            "The Home deep link was dropped with nothing left to discard",
+            waitingHomeDeepLinkStillGoesHome(unsavedChanges, leave),
+        )
+    }
+
+    @Test
+    fun waitingHomeDeepLink_isDropped_whenKeptEditingReplacedOrLost() {
+        val unsavedChanges = UnsavedChangesState()
+        Any().also { unsavedChanges.hostInBackStack(it); unsavedChanges.update(it, dirty = true) }
+        val keptEditing = unsavedChanges.leaveBackStack { true }!!
+        unsavedChanges.keepEditing(keptEditing)
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, keptEditing))
+
+        val replaced = unsavedChanges.leaveBackStack { true }
+        unsavedChanges.leaveBackStack { true }
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, replaced))
+
+        // Its leave lost with a recreation.
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, null))
     }
 
     @Test

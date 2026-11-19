@@ -96,6 +96,10 @@ class BloodTestRepository @Inject constructor(
         return cachedPanels.takeIf { hasCachedPanelList }
     }
 
+    /**
+     * Saves a new panel when [isNew], else edits the panel [uuid], which must still exist. A new
+     * panel saved under a [uuid] chosen ahead saves that same panel again when it is replayed.
+     */
     suspend fun savePanel(
         uuid: UUID?,
         collectedAt: Instant,
@@ -103,6 +107,7 @@ class BloodTestRepository @Inject constructor(
         notes: String?,
         results: List<BloodTestResultInput>,
         now: Instant = Instant.now(),
+        isNew: Boolean = uuid == null,
     ): UUID {
         validateTimeZoneId(collectedAtTimeZoneId)
         require(results.isNotEmpty()) { "Blood test panel must contain at least one result." }
@@ -111,6 +116,8 @@ class BloodTestRepository @Inject constructor(
             val dao = databaseHolder.get().bloodTestDao()
             val panelUuid = uuid ?: UUID.randomUUID()
             val existingPanel = uuid?.let { dao.getPanel(it.toString()) }
+            // An edit of a panel deleted meanwhile doesn't bring it back under its old uuid.
+            check(isNew || existingPanel != null) { "Blood test panel $uuid no longer exists." }
             val existingResultsByUuid = existingPanel?.orEmptyResultsByUuid().orEmpty()
             val customAnalytesByUuid = resolveCustomAnalytesForResults(results, dao)
             validateUniqueAnalytes(results)

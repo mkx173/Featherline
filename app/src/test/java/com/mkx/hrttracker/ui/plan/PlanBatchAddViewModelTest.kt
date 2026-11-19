@@ -444,6 +444,110 @@ class PlanBatchAddViewModelTest {
         assertEquals(LocalDateTime.of(2026, 4, 10, 9, 0), entries[1].scheduledFor)
     }
 
+    // F9: pre-start occurrences aren't matched against manual rows, so a rerun before the
+    // plan's start adds them again: the accepted duplicate.
+    @Test
+    fun buildPlanBatchAddEntryPlan_rerunBeforePlanStart_addsTheManualRowsAgain() {
+        val saved = savedRows(preStartRun())
+
+        val secondRun = preStartRun(existingEntries = saved)
+
+        assertEquals(4, secondRun.entries.size)
+        assertEquals(0, secondRun.skippedEntryCount)
+    }
+
+    // A plan slot that already has a record is still skipped, so a rerun from the start adds nothing.
+    @Test
+    fun buildPlanBatchAddEntryPlan_rerunFromPlanStart_addsNothingNew() {
+        val group = preStartBatchAddGroup()
+        val firstRun = buildPlanBatchAddEntryPlan(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 11),
+            now = LocalDateTime.of(2026, 4, 11, 12, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+        assertEquals(4, firstRun.entries.size)
+
+        val secondRun = buildPlanBatchAddEntryPlan(
+            group = group,
+            existingEntries = savedRows(firstRun),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 11),
+            now = LocalDateTime.of(2026, 4, 11, 12, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(0, secondRun.entries.size)
+        assertEquals(4, secondRun.skippedEntryCount)
+    }
+
+    private fun preStartRun(existingEntries: List<MedicationLogEntry> = emptyList()) =
+        buildPlanBatchAddEntryPlan(
+            group = preStartBatchAddGroup(),
+            existingEntries = existingEntries,
+            startDate = LocalDate.of(2026, 4, 8),
+            endDate = LocalDate.of(2026, 4, 9),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+    // What a run saved, as the next run reads it back.
+    private fun savedRows(run: PlanBatchAddEntryPlan): List<MedicationLogEntry> {
+        val medicinesByUuid = listOf(estradiolMedicine(), spironolactoneMedicine()).associateBy { it.uuid }
+        return run.entries.map { input ->
+            testMedicationLogEntry(
+                medicine = medicinesByUuid.getValue(input.medicineUuid!!),
+                applicationType = input.applicationType,
+                doseInstruction = input.doseInstruction,
+                sourceGroupUuid = input.sourceGroupUuid,
+                scheduleTimeUuid = input.scheduleTimeUuid,
+                appliedAt = input.appliedAt,
+                appliedAtTimeZoneId = input.appliedAtTimeZoneId,
+                scheduledFor = input.scheduledFor,
+                count = input.count,
+            )
+        }
+    }
+
+    @Test
+    fun buildPlanBatchAddEntries_savesASpringForwardGapTimeAtItsShiftedTime() {
+        // 02:30 on Mar 8 does not exist in New York: it's saved at 03:30 EDT.
+        val entries = buildPlanBatchAddEntries(
+            group = preStartBatchAddGroup(since = LocalDate.of(2026, 3, 9), time = LocalTime.of(2, 30)),
+            startDate = LocalDate.of(2026, 3, 8),
+            endDate = LocalDate.of(2026, 3, 8),
+            now = LocalDateTime.of(2026, 3, 9, 12, 0),
+            zoneId = ZoneId.of("America/New_York"),
+        )
+
+        assertEquals(
+            listOf(Instant.parse("2026-03-08T07:30:00Z"), Instant.parse("2026-03-08T07:30:00Z")),
+            entries.map(MedicationLogEntryInput::appliedAt),
+        )
+    }
+
+    @Test
+    fun buildPlanBatchAddEntryPlan_fromPlanStart_aManualRowAtTheSlotDoesNotSkipThePlanRow() {
+        val manualRow = testMedicationLogEntry(
+            medicine = estradiolMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-10T09:00:00Z"),
+            appliedAtTimeZoneId = "UTC",
+        )
+        val group = preStartBatchAddGroup()
+
+        val plan = buildPlanBatchAddEntryPlan(
+            group = group,
+            existingEntries = listOf(manualRow),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(0, plan.skippedEntryCount)
+        assertEquals(listOf(group.uuid, group.uuid), plan.entries.map { entry -> entry.sourceGroupUuid })
+    }
+
     @Test
     fun buildPlanBatchAddEntries_iteratesMedicationDaysAtFourAm() {
         val group = medicationGroup(
@@ -606,7 +710,7 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
-    fun buildPlanBatchAddEntries_skipsPlannedSlotWhenRecordAlreadyExists() {
+    fun buildPlanBatchAddEntries_addsOnlyWhatAPartlyLoggedSlotMisses() {
         val groupUuid = UUID.fromString("865b9574-199f-4bbb-a90b-07b2738bd1ee")
         val existingSlot = LocalDateTime.of(2026, 4, 10, 9, 0)
         val remainingSlot = LocalDateTime.of(2026, 4, 10, 21, 0)
@@ -639,12 +743,12 @@ class PlanBatchAddViewModelTest {
             zoneId = ZoneId.of("UTC"),
         )
 
-        val entries = plan.entries
-        assertEquals(2, entries.size)
-        assertEquals(2, plan.skippedEntryCount)
+        // 09:00 has 1 of 3 estradiol and no spironolactone: 2 estradiol and 1 spironolactone left.
         assertEquals(
-            listOf(remainingSlot, remainingSlot),
-            entries.map { entry -> entry.scheduledFor })
+            listOf(existingSlot to 2, existingSlot to 1, remainingSlot to 3, remainingSlot to 1),
+            plan.entries.map { entry -> entry.scheduledFor to entry.count },
+        )
+        assertEquals(0, plan.skippedEntryCount)
     }
 
     @Test
@@ -776,7 +880,7 @@ class PlanBatchAddViewModelTest {
                 any(),
                 deductStock = true
             )
-        } returns Unit
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             listOf(
                 stockProjection(
@@ -931,7 +1035,7 @@ class PlanBatchAddViewModelTest {
                 any(),
                 deductStock = false
             )
-        } returns Unit
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
 
         val viewModel = PlanBatchAddViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -995,6 +1099,7 @@ class PlanBatchAddViewModelTest {
         } coAnswers {
             writeGate.await()
             writeCompleted = true
+            firstArg<Collection<MedicationLogEntryInput>>().toList()
         }
 
         val viewModel = PlanBatchAddViewModel(
@@ -1374,6 +1479,92 @@ class PlanBatchAddViewModelTest {
         )
     }
 
+    @Test
+    fun saveSelectedRange_reportsWhatTheWriteWrote() = runTest {
+        // Apr 8-10 at 09:00: three doses offered; one logged meanwhile, so the write trims it.
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 8),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().drop(1) }
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+        assertEquals(3, viewModel.uiState.value.entryCount)
+
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(2, viewModel.uiState.value.savedEntryCount)
+    }
+
+    @Test
+    fun buildPlanBatchAddStockPreviewItems_showsThePlansDose_notAPartlyLoggedTimesRest() {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine, count = 2)),
+        )
+        val entry = MedicationLogEntryInput(
+            medicineUuid = medicine.uuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = Instant.EPOCH,
+            count = 2,
+        )
+
+        // 08:00 has 1 of 2 tablets logged, so its entry comes first with the 1 left.
+        val items = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = listOf(entry.copy(count = 1), entry),
+            stockProjections = listOf(
+                stockProjection(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+            group = group,
+        )
+
+        assertEquals(2, items.single().medicationCount)
+        assertEquals(7.0, items.single().afterStock.unitsRemaining!!, 0.0)
+    }
+
     private fun medicationGroup(
         uuid: UUID = UUID.fromString("621f4792-93d2-4d42-aa86-fab9d5c968b1"),
         schedule: MedicationGroupSchedule,
@@ -1390,6 +1581,26 @@ class PlanBatchAddViewModelTest {
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
         )
     }
+
+    /** A daily 09:00 plan starting on Apr 10, so batch add over Apr 8-9 writes manual rows. */
+    private fun preStartBatchAddGroup(
+        medications: List<MedicationGroupMedication> = listOf(
+            testMedicationGroupMedication(medicine = estradiolMedicine(), count = 2),
+            testMedicationGroupMedication(medicine = spironolactoneMedicine()),
+        ),
+        since: LocalDate = LocalDate.of(2026, 4, 10),
+        time: LocalTime = LocalTime.of(9, 0),
+    ) = medicationGroup(
+        uuid = UUID.fromString("b4b4b4b4-0000-4000-8000-000000000000"),
+        schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = since,
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(time),
+        ),
+        medications = medications,
+    )
 
     private fun estradiolMedicine() = testMedicine(
         uuid = UUID.fromString("e2e2e2e2-0000-0000-0000-000000000000"),

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import androidx.annotation.StringRes
 
 object ToastManager {
     // Hold the application context
@@ -17,18 +18,26 @@ object ToastManager {
 
     // Show a toast using the application context
     fun showMessage(message: String) {
-        if (::appContext.isInitialized) {
-            val showToast = {
-                Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
-            }
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                showToast()
-            } else {
-                mainHandler.post(showToast)
-            }
-        } else {
-            // Optionally handle uninitialized context, e.g., log a warning
-            throw IllegalStateException("ToastManager is not initialized. Call ToastManager.init(context) first.")
+        val context = initializedContext()
+        val showToast = {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            showToast()
+        } else {
+            mainHandler.post(showToast)
+        }
+    }
+
+    // Show a string resource, in the app's chosen language.
+    fun showMessageRes(@StringRes messageRes: Int) {
+        showMessage(initializedContext().withAppLanguage().getString(messageRes))
+    }
+
+    private fun initializedContext(): Context {
+        check(::appContext.isInitialized) {
+            "ToastManager is not initialized. Call ToastManager.init(context) first."
+        }
+        return appContext
     }
 }

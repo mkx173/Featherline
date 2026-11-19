@@ -2,10 +2,14 @@ package com.mkx.hrttracker.reminder
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -21,27 +25,43 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.TimeZone
 import java.util.UUID
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 class MedicationReminderSchedulerTest {
     private val context: Context = mockk()
@@ -50,8 +70,11 @@ class MedicationReminderSchedulerTest {
     private val logRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
-    private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+    private val homeGeneration = MutableStateFlow(1L)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
+        every { generation } returns homeGeneration
+    }
     private val estradiol = testMedicine(
         uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
         key = MedicationKey.ESTRADIOL,
@@ -75,8 +98,13 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } just Runs
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } just Runs
-        coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
-        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+        coEvery { reminderScheduleStore.setReconcilePending(any()) } just Runs
+        coEvery { reminderScheduleStore.isReconcilePending() } returns false
+        coEvery { reminderScheduleStore.getSkippedThrough() } answers { skippedThrough.toMap() }
+        coEvery { reminderScheduleStore.skipThrough(any(), any()) } answers {
+            skippedThrough[firstArg()] = secondArg()
+        }
+        coEvery { reminderScheduleStore.clearSkippedThrough() } answers { skippedThrough.clear() }
         every { notificationManager.activeDoseReminders() } returns emptyMap()
 
         scheduler = MedicationReminderScheduler(
@@ -85,11 +113,17 @@ class MedicationReminderSchedulerTest {
             medicationLogRepository = logRepository,
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
-            medicationReminderSnoozeScheduler = snoozeScheduler,
             reminderNotificationManager = notificationManager,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
+            sdkInt = Build.VERSION_CODES.S,
+            instantNow = { clock },
         )
     }
+
+    /** The scheduler's clock; the armed alerts are compared with it. */
+    private var clock: Instant = testInstant(LocalDateTime.of(2026, 4, 20, 9, 30))
+    private val skippedThrough = mutableMapOf<UUID, LocalDateTime>()
 
     @After
     fun tearDown() {
@@ -106,7 +140,7 @@ class MedicationReminderSchedulerTest {
         coEvery { settingsRepository.getCurrentSettings() } returns
                 SettingsState(remindersEnabled = false)
 
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 0))
+        scheduler.rescheduleAll(now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)))
 
         verify { alarmManager.cancel(any<PendingIntent>()) }
         coVerify { reminderScheduleStore.replaceScheduledReminders(emptyMap()) }
@@ -128,7 +162,7 @@ class MedicationReminderSchedulerTest {
 
         scheduler.rescheduleGroup(
             groupUuid = groupId,
-            after = LocalDateTime.of(2026, 4, 20, 9, 0)
+            after = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0))
         )
 
         verify { alarmManager.cancel(any<PendingIntent>()) }
@@ -160,11 +194,11 @@ class MedicationReminderSchedulerTest {
         )
         givenPlans(listOf(edited), shown = shown)
 
-        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(edited.uuid, after = testInstant(reminderNow))
 
         verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
         verify(exactly = 0) {
-            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+            notificationManager.showDoseReminderNotification(any(), any(), any())
         }
     }
 
@@ -191,39 +225,72 @@ class MedicationReminderSchedulerTest {
             ),
         )
 
-        scheduler.rescheduleGroup(group.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(group.uuid, after = testInstant(reminderNow))
 
         verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
         verify(exactly = 0) {
-            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+            notificationManager.showDoseReminderNotification(any(), any(), any())
         }
     }
 
     @Test
-    fun rescheduleGroup_reposts_reminder_silently_without_an_archived_plans_dose() = runTest {
-        val kept = medicationGroup(
-            uuid = UUID.fromString("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"),
+    fun rescheduleAll_clears_a_dose_logged_late_and_arms_none_logged_early() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("6a3d9e2b-4c17-4f80-b5a2-8e1f7c0d3b96"),
             notificationsEnabled = true,
         )
+        val shown = shownReminder(listOf(group))
+        val now = LocalDateTime.of(2026, 4, 20, 21, 30)
+        fun recordAt(scheduledFor: LocalDateTime, appliedAt: LocalDateTime) = testMedicationLogEntry(
+            medicine = estradiol,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = testInstant(appliedAt),
+            scheduledFor = scheduledFor,
+            scheduleTimeUuid = shown.slots.single().scheduleTimeUuid,
+        )
+        // Both 12.5 h outside their 9:00 dose, so neither is on time, but both are taken:
+        // today's on screen, logged late, and tomorrow's, logged early.
+        givenPlans(
+            listOf(group),
+            shown = shown,
+            entries = listOf(
+                recordAt(scheduledFor = shown.scheduledAt, appliedAt = now),
+                recordAt(
+                    scheduledFor = LocalDateTime.of(2026, 4, 21, 9, 0),
+                    appliedAt = LocalDateTime.of(2026, 4, 20, 20, 30),
+                ),
+            ),
+        )
+
+        scheduler.rescheduleAll(testInstant(now))
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any())
+        }
+        coVerify {
+            reminderScheduleStore.replaceScheduledReminders(
+                mapOf(group.uuid to testInstant(LocalDateTime.of(2026, 4, 22, 9, 0)))
+            )
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_cancels_reminder_of_a_plan_archived_since() = runTest {
         val archived = medicationGroup(
             uuid = UUID.fromString("b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"),
             notificationsEnabled = true,
         )
-        val shown = shownReminder(listOf(kept, archived))
+        val shown = shownReminder(listOf(archived))
         val nowArchived = archived.copy(archivedAt = Instant.parse("2026-04-20T00:30:00Z"))
-        givenPlans(listOf(kept, nowArchived), shown = shown)
+        givenPlans(listOf(nowArchived), shown = shown)
 
-        scheduler.rescheduleGroup(nowArchived.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(nowArchived.uuid, after = testInstant(reminderNow))
 
         verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
-        verify {
-            notificationManager.showDoseReminderNotification(
-                bundle = match { bundle -> bundle.slots.map(MedicationReminderSlot::groupUuid) == listOf(kept.uuid) },
-                canSnooze = true,
-                hideMedicationDetails = false,
-                silent = true,
-            )
-        }
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
     }
 
     @Test
@@ -235,11 +302,78 @@ class MedicationReminderSchedulerTest {
         val shown = shownReminder(listOf(group))
         givenPlans(listOf(group), shown = shown)
 
-        scheduler.rescheduleGroup(group.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(group.uuid, after = testInstant(reminderNow))
 
         verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
         verify(exactly = 0) {
-            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+            notificationManager.showDoseReminderNotification(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun refreshDoseReminderNotifications_reposts_a_shown_reminder_silently_once_details_are_hidden() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e70"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+        // You turn on Hide medication details after the reminder was posted with them.
+        coEvery { settingsRepository.getCurrentSettings() } returns
+                SettingsState(remindersEnabled = true, hideMedicationDetails = true)
+
+        scheduler.refreshDoseReminderNotifications()
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                hideMedicationDetails = true,
+                silent = true,
+            )
+        }
+    }
+
+    @Test
+    fun a_missed_reminder_stays_until_the_plans_next_dose_at_its_time_then_goes() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e72"),
+            notificationsEnabled = true,
+        )
+        // Apr 20's 9:00 reminder, still unlogged.
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        clock = testInstant(LocalDateTime.of(2026, 4, 21, 8, 59))
+        scheduler.rescheduleGroup(group.uuid, after = clock)
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+
+        // Several days on, at a later pass: the next 9:00 has long come.
+        clock = testInstant(LocalDateTime.of(2026, 4, 24, 10, 0))
+        scheduler.rescheduleGroup(group.uuid, after = clock)
+        verify(exactly = 1) { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshDoseReminderNotifications_reposts_an_unchanged_reminder_too_as_after_a_language_change() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e71"),
+            notificationsEnabled = true,
+        )
+        // What it shows is unchanged (a reschedule leaves it), but its strings are in the old language.
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        scheduler.refreshDoseReminderNotifications()
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                hideMedicationDetails = false,
+                silent = true,
+            )
         }
     }
 
@@ -278,7 +412,7 @@ class MedicationReminderSchedulerTest {
         )
         givenPlans(listOf(edited), shown = shown)
 
-        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(edited.uuid, after = testInstant(reminderNow))
 
         // Same dose, same tag: the repost replaces it in place.
         verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
@@ -288,7 +422,6 @@ class MedicationReminderSchedulerTest {
                     bundle.notificationTag == shown.notificationTag &&
                             bundle.logTargets.toSet() != shown.logTargets.toSet()
                 },
-                canSnooze = true,
                 hideMedicationDetails = false,
                 silent = true,
             )
@@ -307,7 +440,7 @@ class MedicationReminderSchedulerTest {
         )
         givenPlans(listOf(edited), shown = shown)
 
-        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+        scheduler.rescheduleGroup(edited.uuid, after = testInstant(reminderNow))
 
         verify {
             notificationManager.showDoseReminderNotification(
@@ -315,7 +448,6 @@ class MedicationReminderSchedulerTest {
                     bundle.notificationTag == shown.notificationTag &&
                             bundle.items.single().medications.single().count == 2
                 },
-                canSnooze = true,
                 hideMedicationDetails = false,
                 silent = true,
             )
@@ -336,7 +468,7 @@ class MedicationReminderSchedulerTest {
             )
             givenPlans(listOf(edited), shown)
 
-            scheduler.rescheduleAll(reminderNow)
+            scheduler.rescheduleAll(testInstant(reminderNow))
 
             verify(exactly = 1) {
                 notificationManager.showDoseReminderNotification(
@@ -345,7 +477,6 @@ class MedicationReminderSchedulerTest {
                                 it.contentHash != shown.contentHash &&
                                 it.items.single().medications.single().medicine == medicine
                     },
-                    canSnooze = true,
                     hideMedicationDetails = false,
                     silent = true,
                 )
@@ -354,15 +485,785 @@ class MedicationReminderSchedulerTest {
         verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
     }
 
+    // After a restore: a reminder whose dose is still due in the new data stays,
+    // one whose plan is gone goes, and a due dose that wasn't on screen isn't posted.
+    @Test
+    fun rescheduleAll_keeps_a_still_due_reminder_and_posts_none_for_an_overdue_dose_not_shown() = runTest {
+        val kept = medicationGroup(UUID.fromString("e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81"), notificationsEnabled = true)
+        val removed = medicationGroup(UUID.fromString("f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f7a8b92"), notificationsEnabled = true)
+        val notShown = medicationGroup(UUID.fromString("a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9ca3"), notificationsEnabled = true)
+        val keptShown = shownReminder(listOf(kept))
+        val removedShown = shownReminder(listOf(removed))
+        givenPlans(listOf(kept, notShown), shown = keptShown)
+        every { notificationManager.activeDoseReminders() } returns mapOf(
+            keptShown.notificationTag to ShownDoseReminder(keptShown.slots, keptShown.contentHash),
+            removedShown.notificationTag to ShownDoseReminder(removedShown.slots, removedShown.contentHash),
+        )
+
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(keptShown.notificationTag) }
+        verify(exactly = 1) { notificationManager.cancelDoseReminderNotification(removedShown.notificationTag) }
+        verify(exactly = 0) { notificationManager.cancelAllDoseReminderNotifications() }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun rescheduleAll_clears_a_pending_reconcile_once_done() = runTest {
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        scheduler.markReconcilePending().committed()
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        coVerifyOrder {
+            reminderScheduleStore.setReconcilePending(true)
+            reminderScheduleStore.replaceScheduledReminders(any())
+            reminderScheduleStore.setReconcilePending(false)
+        }
+    }
+
+    @Test
+    fun rescheduleAll_leaves_the_reconcile_pending_when_it_fails() = runTest {
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } throws IllegalStateException("database closed")
+
+        runCatching { scheduler.rescheduleAll(testInstant(reminderNow)) }
+
+        coVerify(exactly = 0) { reminderScheduleStore.setReconcilePending(false) }
+    }
+
+    @Test
+    fun a_group_pass_during_a_full_pass_leaves_the_newest_plan_armed_and_stored() = runTest {
+        trackAlarmsAndStore()
+        val saved = medicationGroup(UUID.fromString("e7a1b2c3-d4e5-4f60-8a71-b2c3d4e5f607"), notificationsEnabled = true)
+        val edited = saved.atTime(LocalTime.of(10, 0))
+        val now = LocalDateTime.of(2026, 4, 20, 8, 0)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        // The full pass reads the plan, the editor saves it at 10:00 and reschedules it.
+        val readingPlans = CompletableDeferred<Unit>()
+        val plansRead = CompletableDeferred<Unit>()
+        coEvery { groupRepository.getGroups() } coAnswers {
+            readingPlans.complete(Unit)
+            plansRead.await()
+            listOf(saved)
+        }
+        coEvery { groupRepository.getGroup(saved.uuid) } returns edited
+
+        val fullPass = launch { scheduler.rescheduleAll(testInstant(now)) }
+        readingPlans.await()
+        val groupPass = launch { scheduler.rescheduleGroup(saved.uuid, after = testInstant(now)) }
+        runCurrent()
+        plansRead.complete(Unit)
+        fullPass.join()
+        groupPass.join()
+
+        assertEquals(
+            listOf(testInstant(LocalDateTime.of(2026, 4, 20, 10, 0)).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+        assertEquals(mapOf<UUID, Instant?>(saved.uuid to testInstant(LocalDateTime.of(2026, 4, 20, 10, 0))), storedReminders)
+    }
+
+    @Test
+    fun rescheduleFromHomeSnapshot_leaves_a_newer_plan_armed_when_the_snapshot_is_stale() = runTest {
+        trackAlarmsAndStore()
+        val saved = medicationGroup(UUID.fromString("f8b2c3d4-e5f6-4071-9b82-c3d4e5f60718"), notificationsEnabled = true)
+        val now = LocalDateTime.of(2026, 4, 20, 8, 0)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        coEvery { groupRepository.getGroup(saved.uuid) } returns saved.atTime(LocalTime.of(10, 0))
+        // Read at generation 1; the editor's save since bumped it and rescheduled the plan.
+        val snapshot = homeSnapshot(generation = 1L, groups = listOf(saved), now = now)
+        homeGeneration.value = 2L
+        scheduler.rescheduleGroup(saved.uuid, after = testInstant(now))
+
+        scheduler.rescheduleFromHomeSnapshot(snapshot, testInstant(now))
+
+        assertEquals(
+            listOf(testInstant(LocalDateTime.of(2026, 4, 20, 10, 0)).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+        assertEquals(mapOf<UUID, Instant?>(saved.uuid to testInstant(LocalDateTime.of(2026, 4, 20, 10, 0))), storedReminders)
+    }
+
+    @Test
+    fun a_reconcile_marked_during_a_full_pass_stays_pending_after_it() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        val readingPlans = CompletableDeferred<Unit>()
+        val plansRead = CompletableDeferred<Unit>()
+        coEvery { groupRepository.getGroups() } coAnswers {
+            readingPlans.complete(Unit)
+            plansRead.await()
+            emptyList()
+        }
+
+        val pass = launch { scheduler.rescheduleAll(testInstant(reminderNow)) }
+        readingPlans.await()
+        // A restore marks before its commit, after this pass read the data.
+        val mark = launch { scheduler.markReconcilePending() }
+        runCurrent()
+        plansRead.complete(Unit)
+        pass.join()
+        mark.join()
+
+        assertTrue("the mark set mid-pass outlives the pass", reconcilePending)
+    }
+
+    @Test
+    fun a_full_pass_before_a_writers_commit_leaves_its_mark_owed_when_its_own_pass_fails() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        // A restore marks; an unrelated pass then reads the data the restore is about to replace.
+        val mark = scheduler.markReconcilePending()
+        scheduler.rescheduleAll(testInstant(reminderNow))
+        // The restore commits, and its own pass fails.
+        mark.committed()
+        coEvery { groupRepository.getGroups() } throws IllegalStateException("database closed")
+        runCatching { scheduler.rescheduleAll(testInstant(reminderNow)) }
+
+        assertTrue("the restore's reconcile is still owed", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_full_pass_that_starts_after_a_writers_commit_clears_its_mark() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        val mark = scheduler.markReconcilePending()
+        scheduler.rescheduleAll(testInstant(reminderNow))
+        mark.committed()
+        // The writer's own pass, or any other that reads the committed data.
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        assertFalse("a pass after the commit settles the mark", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_mark_whose_caller_is_cancelled_after_the_flag_is_written_stays_open() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        lateinit var writer: Job
+        // DataStore's write doesn't check for cancellation; the caller's resumption does.
+        coEvery { reminderScheduleStore.setReconcilePending(true) } answers {
+            reconcilePending = true
+            writer.cancel()
+            throw CancellationException("the editor went")
+        }
+
+        // The writer never gets the mark, but its commit can still land under NonCancellable.
+        writer = launch { scheduler.markReconcilePending() }
+        writer.join()
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        assertTrue("the cancelled writer's reconcile is still owed", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_mark_whose_flag_write_fails_does_not_keep_a_later_pass_from_clearing() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        // Left by an earlier process.
+        reconcilePending = true
+        coEvery { reminderScheduleStore.setReconcilePending(true) } throws IOException("disk full")
+
+        runCatching { scheduler.markReconcilePending() }
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        assertFalse("a failed mark is not left open", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun skipThrough_movesTheWatermark_andArmsTheNextDose_inItsOwnHold() = runTest {
+        trackAlarmsAndStore()
+        val group = medicationGroup(UUID.fromString("09c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        val dose = LocalDateTime.of(2026, 4, 20, 9, 0)
+        // The 09:45 repeat is armed; Skip at 09:30.
+        storedReminders[group.uuid] = testInstant(dose.plusMinutes(45))
+
+        // Its reschedule takes the same lock: the nested call must not wait on it.
+        withTimeout(1_000) { scheduler.skipThrough(group.uuid, doseAt = dose, now = testInstant(reminderNow)) }
+
+        assertEquals(mapOf(group.uuid to dose), skippedThrough)
+        assertEquals(mapOf<UUID, Instant?>(group.uuid to testInstant(dose.plusDays(1))), storedReminders)
+    }
+
+    @Test
+    fun withoutASkip_theNextRepeatIsArmed() = runTest {
+        trackAlarmsAndStore()
+        val group = medicationGroup(UUID.fromString("19c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        scheduler.rescheduleGroup(group.uuid, after = testInstant(reminderNow))
+
+        assertEquals(
+            mapOf<UUID, Instant?>(group.uuid to testInstant(LocalDateTime.of(2026, 4, 20, 9, 45))),
+            storedReminders,
+        )
+    }
+
+    @Test
+    fun theRepeatsSetting_spacesTheAlerts() = runTest {
+        trackAlarmsAndStore()
+        val group = medicationGroup(UUID.fromString("29c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
+            remindersEnabled = true,
+            reminderRepeats = ReminderRepeats(count = 1, intervalMinutes = 60),
+        )
+        coEvery { groupRepository.getGroups() } returns listOf(group)
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        assertEquals(
+            mapOf<UUID, Instant?>(group.uuid to testInstant(LocalDateTime.of(2026, 4, 20, 10, 0))),
+            storedReminders,
+        )
+    }
+
+    @Test
+    fun clearSkips_dropsEveryWatermark() = runTest {
+        skippedThrough[UUID.randomUUID()] = reminderNow
+
+        scheduler.clearSkips()
+
+        assertTrue(skippedThrough.isEmpty())
+    }
+
+    @Test
+    fun claimAlertSound_soundsTheFirstPlanAtAnAlertTime_andNotTheNext() {
+        val eight = Instant.parse("2026-04-20T08:00:00Z")
+        clock = eight.plusSeconds(30 * 60)
+
+        assertTrue(scheduler.claimAlertSound(eight))
+        assertFalse(scheduler.claimAlertSound(eight))
+        // The repeat, at its own time, sounds again.
+        assertTrue(scheduler.claimAlertSound(eight.plusSeconds(15 * 60)))
+        // Another plan's late alarm for the 08:00 alert, after the 08:15 one sounded: the model's
+        // OneSoundPerAlertTime path, where 08:00 would sound twice.
+        assertFalse(scheduler.claimAlertSound(eight))
+    }
+
+    @Test
+    fun awaitsReminderDelivery_comparesTheArmedInstant() = runTest {
+        val group = UUID.fromString("39c3d4e5-f607-4182-8c93-d4e5f6071829")
+        val armed = Instant.parse("2026-04-20T00:00:00Z")
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(group to armed)
+
+        assertTrue(scheduler.awaitsReminderDelivery(group, armed))
+        // An old alarm after a zone change: another instant, though it may share the local time.
+        assertFalse(scheduler.awaitsReminderDelivery(group, armed.minusSeconds(9 * 3600)))
+        // A v1.4.2 alarm carries no instant.
+        assertFalse(scheduler.awaitsReminderDelivery(group, null))
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(group to null)
+        assertTrue("a v1.4.2 key takes any", scheduler.awaitsReminderDelivery(group, null))
+    }
+
+    @Test
+    fun claimAlertSound_forgetsASoundedAlertLaterThanTheClock_afterTheClockIsSetBack() {
+        val eightFifteen = Instant.parse("2026-04-20T08:15:00Z")
+        clock = eightFifteen
+        assertTrue(scheduler.claimAlertSound(eightFifteen))
+
+        // You set the clock back to 07:55; the 08:00 dose comes again, and fails loud.
+        clock = Instant.parse("2026-04-20T07:55:00Z").plusSeconds(5 * 60)
+        assertTrue(scheduler.claimAlertSound(Instant.parse("2026-04-20T08:00:00Z")))
+    }
+
+    @Test
+    fun aPassThatStartsWithAReconcileOwed_repostsEveryReminderOnScreen() = runTest {
+        // A restore marked a reconcile and the process died; this is the new process's first pass,
+        // whichever of its launches runs it.
+        val group = medicationGroup(UUID.fromString("49c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        val shown = shownReminder(listOf(group))
+        trackAlarmsAndStore()
+        givenPlans(listOf(group), shown = shown)
+        reconcilePending = true
+
+        scheduler.rescheduleAll(testInstant(reminderNow))
+        // The other launch, after the flag is settled, reposts nothing more.
+        scheduler.rescheduleAll(testInstant(reminderNow))
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    // A repeat in flight when its dose is logged: each read dates the log back to its dose.
+    private fun givenNineLoggedAtNineOhFive(): MedicationGroup {
+        trackAlarmsAndStore()
+        val group = medicationGroup(UUID.fromString("59c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        val nine = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val record = testMedicationLogEntry(
+            medicine = estradiol,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = testInstant(nine.plusMinutes(5)),
+            scheduledFor = nine,
+            scheduleTimeUuid = group.schedule.timeSlots.single().uuid,
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns listOf(group)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        // As Room answers: dated from the given time on.
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } answers {
+            listOf(record).filterNot { entry -> entry.scheduledFor!!.isBefore(firstArg()) }
+        }
+        clock = testInstant(nine.plusMinutes(10))
+        return group
+    }
+
+    @Test
+    fun rescheduleAll_afterADosesLog_armsNoRepeatOfIt() = runTest {
+        val group = givenNineLoggedAtNineOhFive()
+
+        scheduler.rescheduleAll(testInstant(LocalDateTime.of(2026, 4, 20, 9, 10)))
+
+        assertEquals(mapOf<UUID, Instant?>(group.uuid to testInstant(LocalDateTime.of(2026, 4, 21, 9, 0))), storedReminders)
+    }
+
+    @Test
+    fun rescheduleGroup_afterADosesLog_armsNoRepeatOfIt() = runTest {
+        val group = givenNineLoggedAtNineOhFive()
+
+        scheduler.rescheduleGroup(group.uuid, after = testInstant(LocalDateTime.of(2026, 4, 20, 9, 10)))
+
+        assertEquals(mapOf<UUID, Instant?>(group.uuid to testInstant(LocalDateTime.of(2026, 4, 21, 9, 0))), storedReminders)
+    }
+
+    @Test
+    fun rescheduleFromHomeSnapshot_afterADosesLog_armsNoRepeatOfIt() = runTest {
+        val group = givenNineLoggedAtNineOhFive()
+        val now = LocalDateTime.of(2026, 4, 20, 9, 10)
+        val snapshot = homeSnapshot(generation = 1L, groups = listOf(group), now = now).copy(
+            scheduleEntries = logRepository.getScheduledGroupEntriesSince(LocalDateTime.MIN),
+        )
+
+        scheduler.rescheduleFromHomeSnapshot(snapshot, testInstant(now))
+
+        assertEquals(mapOf<UUID, Instant?>(group.uuid to testInstant(LocalDateTime.of(2026, 4, 21, 9, 0))), storedReminders)
+    }
+
+    @Test
+    fun rescheduleAll_withRepostShown_repostsAnUnchangedReminder_silently() = runTest {
+        val group = medicationGroup(UUID.fromString("69c3d4e5-f607-4182-8c93-d4e5f6071829"), notificationsEnabled = true)
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        scheduler.rescheduleAll(testInstant(reminderNow), repostShown = true)
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_after_another_doses_log_arms_again_a_passed_dose_whose_alarm_has_not_come() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = testInstant(afterNoon))
+
+        // At its own time, so it fires at once.
+        assertEquals(listOf(testInstant(noon).toEpochMilli()), armedAlarms.values.toList())
+        assertEquals(mapOf<UUID, Instant?>(twiceDaily.uuid to testInstant(noon)), storedReminders)
+    }
+
+    @Test
+    fun rescheduleGroup_after_the_passed_doses_own_log_arms_the_next_dose() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(noon)))
+
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = testInstant(afterNoon))
+
+        val tomorrowMorning = morning.plusDays(1)
+        assertEquals(listOf(testInstant(tomorrowMorning).toEpochMilli()), armedAlarms.values.toList())
+        assertEquals(mapOf<UUID, Instant?>(twiceDaily.uuid to testInstant(tomorrowMorning)), storedReminders)
+    }
+
+    @Test
+    fun rescheduleGroup_in_the_repeated_hour_arms_again_a_first_pass_dose_whose_alarm_has_not_come() = runTest {
+        // New York's clocks go back from 02:00 to 01:00 on Nov 1 2026. It's the second 01:10
+        // (EST), and the 01:30 alarm, armed at the first 01:30 (EDT), hasn't come yet.
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val night = medicationGroup(
+                UUID.fromString("7d3e9c20-4f5b-4a6c-9d7e-8f9a0b1c2d3e"),
+                notificationsEnabled = true,
+            ).atTime(LocalTime.of(1, 30))
+            val firstPass = LocalDateTime.of(2026, 11, 1, 1, 30)
+            val atSecondTenPastOne = MedicationReminderScheduler(
+                context = context,
+                medicationGroupRepository = groupRepository,
+                medicationLogRepository = logRepository,
+                settingsRepository = settingsRepository,
+                reminderScheduleStore = reminderScheduleStore,
+                reminderNotificationManager = notificationManager,
+                homeSnapshotRepository = homeSnapshotRepository,
+                diagnosticsLogger = diagnosticsLogger,
+                sdkInt = Build.VERSION_CODES.S,
+                instantNow = { Instant.parse("2026-11-01T06:10:00Z") },
+            )
+            trackAlarmsAndStore()
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+            coEvery { groupRepository.getGroup(night.uuid) } returns night
+            coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+            storedReminders[night.uuid] = testInstant(firstPass)
+
+            atSecondTenPastOne.rescheduleGroup(night.uuid, after = Instant.parse("2026-11-01T06:10:00Z"))
+
+            // At its own time, which has passed, so it fires at once and its dose still rings.
+            assertEquals(mapOf<UUID, Instant?>(night.uuid to testInstant(firstPass)), storedReminders)
+            assertEquals(listOf(testInstant(firstPass).toEpochMilli()), armedAlarms.values.toList())
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
+    }
+
+    @Test
+    fun at_the_second_ten_past_one_each_pass_arms_tomorrows_one_thirty_dose() = runTest {
+        // New York's clocks go back from 02:00 to 01:00 on Nov 1 2026. It's the second 01:10
+        // (EST): today's 01:30 was on the first pass, and with repeats Off nothing of it is left.
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            clock = Instant.parse("2026-11-01T06:10:00Z")
+            val night = medicationGroup(
+                UUID.fromString("2b6f0e1a-3c4d-4e5f-8a9b-0c1d2e3f4a5b"),
+                notificationsEnabled = true,
+            ).atTime(LocalTime.of(1, 30))
+            trackAlarmsAndStore()
+            coEvery { settingsRepository.getCurrentSettings() } returns
+                SettingsState(remindersEnabled = true, reminderRepeats = ReminderRepeats(count = 0))
+            coEvery { groupRepository.getGroups() } returns listOf(night)
+            coEvery { groupRepository.getGroup(night.uuid) } returns night
+            coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+            val snapshot = homeSnapshot(homeGeneration.value, listOf(night), LocalDateTime.of(2026, 11, 1, 1, 10))
+            val tomorrow = Instant.parse("2026-11-02T06:30:00Z")
+
+            listOf<Pair<String, suspend () -> Unit>>(
+                "rescheduleAll" to { scheduler.rescheduleAll(now = clock) },
+                "rescheduleFromHomeSnapshot" to { scheduler.rescheduleFromHomeSnapshot(snapshot, now = clock) },
+                "rescheduleGroup" to { scheduler.rescheduleGroup(night.uuid, after = clock) },
+            ).forEach { (name, pass) ->
+                storedReminders.clear()
+                armedAlarms.clear()
+
+                pass()
+
+                assertEquals(name, mapOf<UUID, Instant?>(night.uuid to tomorrow), storedReminders)
+                assertEquals(name, listOf(tomorrow.toEpochMilli()), armedAlarms.values.toList())
+            }
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
+    }
+
+    @Test
+    fun a_passed_dose_armed_again_while_its_alarm_was_in_flight_is_posted_once() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+        // The 12:00 alarm has left AlarmManager, and its receiver hasn't run yet.
+        armedAlarms.clear()
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = testInstant(afterNoon))
+
+        // That alarm, then the one armed again.
+        repeat(2) { deliverReminder(alertAt = noon, now = afterNoon) }
+        // Delivered, it isn't armed again by the next log: the dose's next repeat is.
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = testInstant(afterNoon.plusMinutes(1)))
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.map(MedicationReminderSlot::scheduledAt) == listOf(noon) },
+                hideMedicationDetails = any(),
+                silent = false,
+            )
+        }
+        assertEquals(listOf(testInstant(noon.plusMinutes(15)).toEpochMilli()), armedAlarms.values.toList())
+    }
+
+    @Test
+    fun a_repeat_rings_until_its_cap_and_then_the_next_dose_is_armed() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+
+        // The noon dose's four alerts, each delivered on time.
+        listOf(0L, 15L, 30L, 45L).forEach { minutes ->
+            val alertAt = noon.plusMinutes(minutes)
+            clock = testInstant(alertAt)
+            deliverReminder(alertAt = alertAt, now = alertAt)
+        }
+
+        verify(exactly = 4) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.map(MedicationReminderSlot::scheduledAt) == listOf(noon) },
+                hideMedicationDetails = any(),
+                silent = false,
+            )
+        }
+        assertEquals(listOf(testInstant(morning.plusDays(1)).toEpochMilli()), armedAlarms.values.toList())
+    }
+
+    @Test
+    fun two_plans_at_one_alert_time_each_post_their_own_and_only_the_first_sounds() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+        val other = twiceDaily.copy(uuid = UUID.fromString("3c5e7a91-2b4d-4f6a-8c0e-1d3f5b7a9c2e"))
+        coEvery { groupRepository.getGroup(other.uuid) } returns other
+        coEvery { groupRepository.getGroups() } returns listOf(twiceDaily, other)
+        storedReminders[other.uuid] = testInstant(noon)
+        clock = testInstant(noon)
+
+        deliverReminder(alertAt = noon, now = noon)
+        deliverReminder(alertAt = noon, now = noon, groupUuid = other.uuid)
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.single().groupUuid == twiceDaily.uuid },
+                hideMedicationDetails = any(),
+                silent = false,
+            )
+        }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.single().groupUuid == other.uuid },
+                hideMedicationDetails = any(),
+                silent = true,
+            )
+        }
+    }
+
+    @Test
+    fun a_delivery_hours_past_its_doses_alerts_posts_nothing_and_arms_the_next_alert() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+        // The clock jumped to 16:00: the noon dose's last alert, 12:45, is hours old.
+        val jumped = noon.withHour(16)
+        clock = testInstant(jumped)
+
+        deliverReminder(alertAt = noon, now = jumped)
+
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+        assertEquals(listOf(testInstant(morning.plusDays(1)).toEpochMilli()), armedAlarms.values.toList())
+    }
+
+    @Test
+    fun three_plans_past_due_by_hours_post_nothing() = runTest {
+        val plans = givenThreePlansArmedAtNoon()
+        val jumped = noon.withHour(16)
+        clock = testInstant(jumped)
+
+        plans.forEach { plan -> deliverReminder(alertAt = noon, now = jumped, groupUuid = plan.uuid) }
+
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun three_plans_a_few_minutes_past_their_alert_each_post_and_the_first_sounds() = runTest {
+        val plans = givenThreePlansArmedAtNoon()
+        val late = noon.plusMinutes(5)
+        clock = testInstant(late)
+
+        plans.forEach { plan -> deliverReminder(alertAt = noon, now = late, groupUuid = plan.uuid) }
+
+        plans.forEachIndexed { index, plan ->
+            verify(exactly = 1) {
+                notificationManager.showDoseReminderNotification(
+                    bundle = match { bundle -> bundle.slots.single().groupUuid == plan.uuid },
+                    hideMedicationDetails = any(),
+                    silent = index > 0,
+                )
+            }
+        }
+    }
+
+    /** [twiceDaily] and two plans like it, each with its morning dose logged and noon armed. */
+    private fun givenThreePlansArmedAtNoon(): List<MedicationGroup> {
+        val plans = listOf(
+            twiceDaily,
+            twiceDaily.copy(uuid = UUID.fromString("3c5e7a91-2b4d-4f6a-8c0e-1d3f5b7a9c2e")),
+            twiceDaily.copy(uuid = UUID.fromString("4d6f8b02-3c5e-4a7b-9d1f-2e4a6c8b0d3f")),
+        )
+        val entries = plans.map { plan -> loggedAt(morning).copy(sourceGroupUuid = plan.uuid) }
+        givenNoonArmed(entries = entries)
+        coEvery { groupRepository.getGroups() } returns plans
+        plans.forEach { plan ->
+            coEvery { groupRepository.getGroup(plan.uuid) } returns plan
+            armedAlarms[reminderIntentKey(plan.uuid)] = testInstant(noon).toEpochMilli()
+            storedReminders[plan.uuid] = testInstant(noon)
+        }
+        return plans
+    }
+
+    // Doses at 08:00 and 12:00. At 12:10 the 12:00 alarm, inexact, still hasn't come.
+    private val twiceDaily = medicationGroup(
+        UUID.fromString("2b4d6f80-1a3c-4e5f-8a7b-9c0d1e2f3a4b"),
+        notificationsEnabled = true,
+    ).run {
+        copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = schedule.since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+            )
+        )
+    }
+    private val morning = LocalDateTime.of(2026, 4, 20, 8, 0)
+    private val noon = LocalDateTime.of(2026, 4, 20, 12, 0)
+    private val afterNoon = LocalDateTime.of(2026, 4, 20, 12, 10)
+
+    /** A record of [twiceDaily]'s dose at [scheduledFor], logged at [afterNoon]. */
+    private fun loggedAt(scheduledFor: LocalDateTime) = testMedicationLogEntry(
+        medicine = estradiol,
+        applicationType = MedicationApplicationType.ORAL,
+        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+        sourceGroupUuid = twiceDaily.uuid,
+        appliedAt = testInstant(afterNoon),
+        scheduledFor = scheduledFor,
+    )
+
+    /** [twiceDaily]'s 12:00 alarm armed and stored, with [entries] logged. */
+    private fun givenNoonArmed(entries: List<MedicationLogEntry>) {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroup(twiceDaily.uuid) } returns twiceDaily
+        coEvery { groupRepository.getGroups() } returns listOf(twiceDaily)
+        // As Room reads them: dated from the given time on.
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } answers {
+            entries.filterNot { entry -> entry.scheduledFor!!.isBefore(firstArg()) }
+        }
+        armedAlarms[reminderIntentKey(twiceDaily.uuid)] = testInstant(noon).toEpochMilli()
+        storedReminders[twiceDaily.uuid] = testInstant(noon)
+        clock = testInstant(afterNoon)
+    }
+
+    /** [groupUuid]'s alarm for the alert at [alertAt], received at [now] by the receiver. */
+    private fun TestScope.deliverReminder(
+        alertAt: LocalDateTime,
+        now: LocalDateTime,
+        groupUuid: UUID = twiceDaily.uuid,
+    ) {
+        handleDoseReminder(
+            groupUuid = groupUuid,
+            alertAt = testInstant(alertAt),
+            clock = { testInstant(now) },
+            deadline = TimeSource.Monotonic.markNow() + 8.seconds,
+            appScope = backgroundScope,
+            settingsRepository = settingsRepository,
+            medicationGroupRepository = groupRepository,
+            medicationLogRepository = logRepository,
+            medicationReminderScheduler = scheduler,
+            reminderNotificationManager = notificationManager,
+            e2EstimateRepository = mockk<E2EstimateRepository>(relaxed = true),
+            diagnosticsLogger = diagnosticsLogger,
+            pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true),
+        )
+        runCurrent()
+    }
+
+    private fun reminderIntentKey(groupUuid: UUID) = "hrttracker://medication-reminder/$groupUuid"
+
+    /** Each armed alarm's trigger time, by its intent data, as AlarmManager keeps them. */
+    private val armedAlarms = mutableMapOf<String, Long>()
+    private val storedReminders = mutableMapOf<UUID, Instant?>()
+    private var reconcilePending = false
+
+    private fun trackAlarmsAndStore() {
+        val pendingIntents = mutableMapOf<String, PendingIntent>()
+        var lastIntentData = ""
+        every { Uri.parse(any()) } answers {
+            lastIntentData = firstArg()
+            mockk(relaxed = true)
+        }
+        every {
+            PendingIntent.getBroadcast(any(), any(), any(), any<Int>())
+        } answers { pendingIntents.getOrPut(lastIntentData) { mockk(relaxed = true) } }
+        fun intentDataOf(pendingIntent: PendingIntent) =
+            pendingIntents.entries.first { (_, value) -> value === pendingIntent }.key
+        every {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        } answers { armedAlarms[intentDataOf(thirdArg())] = secondArg() }
+        every { alarmManager.cancel(any<PendingIntent>()) } answers {
+            armedAlarms.remove(intentDataOf(firstArg()))
+        }
+        coEvery { reminderScheduleStore.getScheduledReminders() } answers { storedReminders.toMap() }
+        coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } answers {
+            storedReminders[firstArg()] = secondArg()
+        }
+        coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } answers {
+            storedReminders.remove(firstArg<UUID>())
+        }
+        coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } answers {
+            storedReminders.clear()
+            storedReminders.putAll(firstArg<Map<UUID, Instant>>())
+        }
+        coEvery { reminderScheduleStore.setReconcilePending(any()) } answers {
+            reconcilePending = firstArg()
+        }
+        coEvery { reminderScheduleStore.isReconcilePending() } answers { reconcilePending }
+    }
+
+    private fun MedicationGroup.atTime(time: LocalTime) = copy(
+        schedule = MedicationGroupSchedule(
+            type = schedule.type,
+            interval = schedule.interval,
+            since = schedule.since,
+            weeklyDaysOfWeek = schedule.weeklyDaysOfWeek,
+            times = listOf(time),
+        )
+    )
+
+    private fun homeSnapshot(generation: Long, groups: List<MedicationGroup>, now: LocalDateTime) =
+        HomeSnapshotRecord(
+            schemaVersion = 3,
+            generation = generation,
+            generatedAtEpochMillis = testInstant(now).toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            activeGroups = groups,
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
     private val reminderNow = LocalDateTime.of(2026, 4, 20, 9, 30)
 
-    /** The 9:00 reminder for [groups], as posted. */
-    private fun shownReminder(groups: List<MedicationGroup>): MedicationReminderBundle =
-        buildMedicationReminderBundle(
-            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
-            groups = groups,
-            entries = emptyList(),
-        )!!
+    /** The 9:00 reminder for [groups], as posted: one plan's, or as v1.4.2 merged several. */
+    private fun shownReminder(groups: List<MedicationGroup>): MedicationReminderBundle {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        return MedicationReminderBundle(
+            scheduledAt = scheduledAt,
+            items = groups.flatMap { group ->
+                buildMedicationReminderBundle(scheduledAt = scheduledAt, group = group, entries = emptyList())!!.items
+            },
+        )
+    }
 
     private fun givenPlans(
         groups: List<MedicationGroup>,
@@ -389,7 +1290,7 @@ class MedicationReminderSchedulerTest {
                 SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
+        scheduler.rescheduleAll(now = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0)))
 
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
@@ -402,7 +1303,7 @@ class MedicationReminderSchedulerTest {
                     "reminder_reschedule_all_complete" in message &&
                             "groups=1" in message &&
                             "plans=1" in message &&
-                            "stored=1" in message
+                            "plans=1" in message
                 }
             )
         }
@@ -429,7 +1330,7 @@ class MedicationReminderSchedulerTest {
                 scheduleEntries = emptyList(),
                 antiandrogenHistoryEntries = emptyList(),
             ),
-            now = now,
+            now = testInstant(now),
         )
 
         verify {
@@ -454,7 +1355,7 @@ class MedicationReminderSchedulerTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
         coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(staleGroupUuid to null)
 
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
+        scheduler.rescheduleAll(now = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0)))
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
         coVerify { reminderScheduleStore.replaceScheduledReminders(match { reminders -> reminders.keys == setOf(activeGroup.uuid) }) }
@@ -472,7 +1373,7 @@ class MedicationReminderSchedulerTest {
                 SettingsState(remindersEnabled = false)
         coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(staleGroupUuid to null)
 
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
+        scheduler.rescheduleAll(now = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0)))
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
         coVerify { reminderScheduleStore.replaceScheduledReminders(emptyMap()) }
@@ -501,7 +1402,7 @@ class MedicationReminderSchedulerTest {
                 scheduleEntries = emptyList(),
                 antiandrogenHistoryEntries = emptyList(),
             ),
-            now = now,
+            now = testInstant(now),
         )
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
@@ -529,7 +1430,7 @@ class MedicationReminderSchedulerTest {
                 SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
+        scheduler.rescheduleAll(now = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0)))
 
         assertEquals(
             setOf(
@@ -552,7 +1453,7 @@ class MedicationReminderSchedulerTest {
 
         scheduler.rescheduleGroup(
             groupUuid = group.uuid,
-            after = LocalDateTime.of(2026, 4, 20, 8, 0)
+            after = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0))
         )
 
         coVerify { reminderScheduleStore.removeScheduledGroupUuid(group.uuid) }
@@ -575,7 +1476,7 @@ class MedicationReminderSchedulerTest {
 
         scheduler.rescheduleGroup(
             groupUuid = group.uuid,
-            after = LocalDateTime.of(2026, 4, 20, 8, 0)
+            after = testInstant(LocalDateTime.of(2026, 4, 20, 8, 0))
         )
 
         coVerify { reminderScheduleStore.removeScheduledGroupUuid(group.uuid) }
@@ -583,24 +1484,6 @@ class MedicationReminderSchedulerTest {
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
-    }
-
-    @Test
-    fun rescheduleGroup_clears_stale_snoozes_for_current_group_schedule() = runTest {
-        val group = medicationGroup(
-            uuid = UUID.fromString("ff687dfd-1ec9-49d3-9901-d99a6636e66d"),
-            notificationsEnabled = true,
-        )
-        coEvery { settingsRepository.getCurrentSettings() } returns
-                SettingsState(remindersEnabled = true)
-        coEvery { groupRepository.getGroup(group.uuid) } returns group
-        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
-        scheduler.rescheduleGroup(
-            groupUuid = group.uuid,
-            after = LocalDateTime.of(2026, 4, 20, 8, 0),
-        )
-
-        coVerify { snoozeScheduler.clearStaleSnoozesForGroup(group) }
     }
 
     private fun medicationGroup(

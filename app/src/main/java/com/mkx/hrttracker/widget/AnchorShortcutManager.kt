@@ -6,7 +6,10 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
 // The pinned-shortcut surface. No new persistence: the set of pinned anchor shortcuts is
@@ -25,6 +28,8 @@ object AnchorShortcutManager {
     // removed") a pinned shortcut published by any other feature this app grows later —
     // getShortcuts(FLAG_MATCH_PINNED) returns ALL of the app's pins, not just ours.
     private const val SHORTCUT_ID_PREFIX = "anchor:"
+
+    private val refreshMutex = Mutex()
 
     private fun shortcutId(anchor: TrackedDate): String = SHORTCUT_ID_PREFIX + anchor.id
 
@@ -46,12 +51,15 @@ object AnchorShortcutManager {
     // persistent error window that the unbounded await would hang on): SKIP the whole
     // refresh — never disable a pin on an inability to confirm its anchor is gone. A later
     // successful refresh (on-change or next broadcast) heals any genuinely-orphaned pins.
-    suspend fun refreshAll(context: Context) {
+    // One refresh at a time, read through apply: the journal observer and the date receiver
+    // both refresh, and one that read the journal before a delete would otherwise re-enable
+    // the deleted anchor's shortcut after the delete's own refresh disabled it.
+    suspend fun refreshAll(context: Context): Unit = refreshMutex.withLock {
         val journalRepository = EntryPointAccessors
             .fromApplication(context, WidgetEntryPoint::class.java)
             .journalRepository()
         val liveById = (journalRepository.awaitTrackedDatesOrNull(REFRESH_AWAIT_TIMEOUT_MS)
-            ?: return).associateBy { it.id }
+            ?: return@withLock).associateBy { it.id }
 
         // Only OUR pins: everything downstream (including the disable sweep) must stay
         // blind to pinned shortcuts from other features.
@@ -83,7 +91,7 @@ object AnchorShortcutManager {
             ShortcutManagerCompat.disableShortcuts(
                 context,
                 plan.toDisable.toList(),
-                context.getString(R.string.anchor_shortcut_disabled_message),
+                context.withAppLanguage().getString(R.string.anchor_shortcut_disabled_message),
             )
         }
     }

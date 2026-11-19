@@ -29,14 +29,21 @@ fun calibrationDoseWindowStartEpochMillis(labs: List<PkCalibrationLab>): Long? =
  * and its fitId tells when the published fit can stand in for the solve. A dose
  * entry that cannot become a PK event is skipped, the same way the Home
  * projection skips it, instead of turning calibration off.
+ *
+ * A lab collected after [nowEpochMillis] is left out: the doses due before
+ * it aren't logged yet, so the fit would read it as high and scale every
+ * estimate up. Only its id stays, so its row can say why; the fit's identity
+ * moves once the clock reaches it.
  */
 fun buildPkCalibrationInput(
     labs: List<PkCalibrationLab>,
     entries: List<MedicationLogEntry>,
     weightKg: Double?,
     metadata: List<E2CalibrationMetadata>,
+    nowEpochMillis: Long,
 ): PkCalibrationInput {
-    val windowStart = calibrationDoseWindowStartEpochMillis(labs) ?: Long.MIN_VALUE
+    val (collected, future) = labs.partition { lab -> lab.collectedAtEpochMillis <= nowEpochMillis }
+    val windowStart = calibrationDoseWindowStartEpochMillis(collected) ?: Long.MIN_VALUE
     val allEstradiolEntries = entries.filter { it.category == MedicationCategory.ESTRADIOL }
     // Every dose older than the window: keep the latest so the state reads as
     // labs below the modeled signal, not as no dose logged. The worker's run
@@ -46,7 +53,7 @@ fun buildPkCalibrationInput(
         .ifEmpty { listOfNotNull(allEstradiolEntries.maxByOrNull { it.appliedAt }) }
     // With no lab and no dose there is nothing to place, so any origin is the
     // same fit; a fixed one keeps the input, and the stored fit, off the clock.
-    val origin = (labs.map { it.collectedAtEpochMillis } +
+    val origin = (collected.map { it.collectedAtEpochMillis } +
             estradiolEntries.map { it.appliedAt.toEpochMilli() })
         .minOrNull() ?: 0L
     val anchor = Instant.ofEpochMilli(origin)
@@ -54,12 +61,13 @@ fun buildPkCalibrationInput(
         entry.buildEstradiolPkDoseEvent(anchor)
     }
     return PkCalibrationInput(
-        labs = labs,
+        labs = collected,
         doseEvents = doseEvents,
         originEpochMillis = origin,
         // Same resolution as the Home projection: an unset Current Weight
         // falls back to the app-wide default.
         weightKg = PkMedicationSimulation.resolvedBodyWeightKg(weightKg),
         metadata = metadata,
+        futureLabIds = future.mapTo(HashSet()) { lab -> lab.resultId },
     )
 }

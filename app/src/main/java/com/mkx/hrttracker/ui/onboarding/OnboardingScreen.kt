@@ -117,6 +117,7 @@ import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
+import com.mkx.hrttracker.ui.components.rememberAccessDenials
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
@@ -127,6 +128,7 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.settings.WeightSheet
+import com.mkx.hrttracker.ui.settings.weightRowText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -174,12 +176,14 @@ internal fun resolveOnboardingNotificationPermissionAction(
 
 internal fun shouldShowNotificationPermissionOnboardingCard(
     notificationsGrantedAtStart: Boolean,
+    notificationsGranted: Boolean,
 ): Boolean {
     // Show the permission card whenever access was missing as onboarding began.
     // Visibility keys off the captured start state so the card — and the step's
     // subtitle — stay stable: granting during onboarding flips the card to a
-    // granted state instead of making it disappear.
-    return !notificationsGrantedAtStart
+    // granted state instead of making it disappear. Access lost since then shows
+    // it too: Continue needs access, so the card and Skip are the way forward.
+    return !notificationsGrantedAtStart || !notificationsGranted
 }
 
 internal fun shouldShowReminderMasterOnboardingCard(
@@ -255,7 +259,10 @@ fun OnboardingScreen(
     val notificationsGrantedAtStart = rememberSaveable { notificationsGranted }
     val exactAlarmGrantedAtStart = rememberSaveable { exactAlarmGranted }
     val showNotificationPermissionCard =
-        shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart)
+        shouldShowNotificationPermissionOnboardingCard(
+            notificationsGrantedAtStart = notificationsGrantedAtStart,
+            notificationsGranted = notificationsGranted,
+        )
     val showReminderMasterCard = shouldShowReminderMasterOnboardingCard(
         notificationsGranted = notificationsGranted,
         notificationsGrantedAtStart = notificationsGrantedAtStart,
@@ -559,11 +566,13 @@ fun OnboardingScreen(
             readingProblem = healthConnectReadingProblem,
             isInProgress = false,
             onSave = viewModel::setWeight,
+            onUnitChange = viewModel::setWeightUnit,
             onClear = viewModel::clearWeight,
             onSyncEnable = viewModel::enableHealthConnectWeightSync,
             onSyncDisable = viewModel::disableHealthConnectWeightSync,
             onSyncNow = viewModel::syncWeightNow,
             onDismissRequest = { showWeightDialog = false },
+            healthConnectDenial = rememberAccessDenials().healthConnect,
         )
     }
 
@@ -1473,11 +1482,12 @@ private fun UsefulInfoStep(
             title = stringResource(R.string.onboarding_useful_weight_title),
             // Sync on counts as set, like the Settings weight row.
             desc = formatWeightSummary(profile, weightEmptyRes).let { summary ->
-                if (weightSyncOn) {
-                    stringResource(R.string.personalization_weight_display_health_connect, summary)
-                } else {
-                    summary
-                }
+                weightRowText(
+                    summary = summary,
+                    withSource = stringResource(R.string.personalization_weight_display_health_connect, summary),
+                    syncOn = weightSyncOn,
+                    profile = profile,
+                )
             },
             index = 0,
             count = 3,

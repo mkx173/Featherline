@@ -6,9 +6,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
-import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.toStorageValue
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
@@ -83,33 +83,37 @@ data class MedicationReminderBundle(
         ).toString()
 }
 
-/** A dose reminder on screen: the doses it names, and [MedicationReminderBundle.contentHash] when posted. */
+/**
+ * [MedicationReminderBundle.contentHash], and whether the post hid its medications: a change to
+ * either calls for a repost. The same as the plain hash when shown, as an older build posted it.
+ */
+internal fun MedicationReminderBundle.postedContentHash(hideMedicationDetails: Boolean): String =
+    if (hideMedicationDetails) "$contentHash/hidden" else contentHash
+
+/** A dose reminder on screen: the doses it names, and [postedContentHash] when posted. */
 data class ShownDoseReminder(
     val slots: List<MedicationReminderSlot>,
     val contentHash: String?,
 )
 
+/** [group]'s reminder for its doses at [scheduledAt], with what each still misses; null with none. */
 internal fun buildMedicationReminderBundle(
     scheduledAt: LocalDateTime,
-    groups: List<MedicationGroup>,
+    group: MedicationGroup,
     entries: List<MedicationLogEntry>,
 ): MedicationReminderBundle? {
-    val items = groups
-        .sortedBy(MedicationGroup::createdAt)
+    if (!group.isActive() || !group.notificationsEnabled || group.medications.isEmpty()) {
+        return null
+    }
+    val items = group
+        .occurrencesBetweenInPlanWindow(
+            startDate = scheduledAt.toLocalDate(),
+            endDate = scheduledAt.toLocalDate(),
+        )
         .asSequence()
-        .filter(MedicationGroup::isActive)
-        .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
-        .flatMap { group ->
-            group.occurrencesBetweenInPlanWindow(
-                startDate = scheduledAt.toLocalDate(),
-                endDate = scheduledAt.toLocalDate(),
-            )
-                .asSequence()
-                .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
-                .map { occurrence -> group to occurrence }
-        }
-        .filterNot { (group, occurrence) ->
-            isSlotFulfilled(
+        .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
+        .mapNotNull { occurrence ->
+            val missingCounts = missingSlotCounts(
                 group = group,
                 slot = MedicationGroupSlotKey(
                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
@@ -117,25 +121,15 @@ internal fun buildMedicationReminderBundle(
                 ),
                 entries = entries,
             )
-        }
-        .mapNotNull { (group, occurrence) ->
-            val slotKey = MedicationGroupSlotKey(
-                scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                scheduledFor = occurrence.scheduledFor,
-            )
-            val displayedMedications = group.medications.filterNot { medication ->
-                isSlotFulfilledForMedication(
-                    group = group,
-                    slot = slotKey,
-                    medication = medication,
-                    entries = entries,
-                )
-            }
-            // The slot-level filter above already established that at least
-            // one signature is unfulfilled, so this list is normally non-empty.
-            // Guard anyway: with duplicate-signature meds in one group the two
-            // predicates can disagree, and silently rendering an empty body
-            // would be worse than dropping the row.
+            // A dose logged late, outside its window, is taken: only what the slot
+            // still misses is reminded, and nothing once it misses nothing. One row per
+            // medication, with what is left of it, as Log now writes.
+            val displayedMedications = group.medications
+                .distinctBy(MedicationSignature::fromGroupMedication)
+                .mapNotNull { medication ->
+                    missingCounts[MedicationSignature.fromGroupMedication(medication)]
+                        ?.let { missing -> medication.copy(count = missing) }
+                }
             if (displayedMedications.isEmpty()) {
                 return@mapNotNull null
             }
@@ -162,22 +156,18 @@ internal fun buildMedicationReminderBundle(
 }
 
 /**
- * The part of a reminder on screen for [slots] whose doses are still pending, built as a
- * fresh post for the same dose time would be, or null when none are left.
+ * The part of a reminder on screen for [group]'s [slots] whose doses are still pending, built as
+ * a fresh post for the same dose time would be, or null when none are left.
  */
 internal fun remainingMedicationReminderBundle(
     slots: List<MedicationReminderSlot>,
-    groups: List<MedicationGroup>,
+    group: MedicationGroup,
     entries: List<MedicationLogEntry>,
 ): MedicationReminderBundle? {
-    val groupUuids = slots.mapTo(mutableSetOf(), MedicationReminderSlot::groupUuid)
     val items = slots.map(MedicationReminderSlot::scheduledAt).distinct().sorted()
         .flatMap { scheduledAt ->
-            buildMedicationReminderBundle(
-                scheduledAt = scheduledAt,
-                groups = groups.filter { group -> group.uuid in groupUuids },
-                entries = entries,
-            )?.items.orEmpty()
+            buildMedicationReminderBundle(scheduledAt = scheduledAt, group = group, entries = entries)
+                ?.items.orEmpty()
         }
         .filter { item -> item.slot in slots }
     return items.takeIf(List<MedicationReminderBundleItem>::isNotEmpty)?.let { bundleItems ->
@@ -187,6 +177,21 @@ internal fun remainingMedicationReminderBundle(
         )
     }
 }
+
+/**
+ * Whether the dose at [slot] has had its day at [now]: the plan's next dose at the same schedule
+ * time has come (tomorrow's, for a daily plan). Its reminder on screen goes then, so missed
+ * ones don't pile up. v1.4.2's snooze lifetime, the same bound.
+ */
+internal fun MedicationGroup.doseLifetimeEnded(slot: MedicationReminderSlot, now: LocalDateTime): Boolean =
+    // Up to now only: the occurrences never end for an active plan, and a slot whose schedule
+    // time an edit removed never comes again.
+    occurrencesInPlanWindowFrom(start = slot.scheduledAt)
+        .takeWhile { occurrence -> !occurrence.scheduledFor.isAfter(now) }
+        .any { occurrence ->
+            occurrence.scheduledFor.isAfter(slot.scheduledAt) &&
+                    (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)
+        }
 
 internal fun medicationReminderNotificationTag(slots: List<MedicationReminderSlot>): String {
     val sortedSlotValues = slots.map(MedicationReminderSlot::toStorageValue).sorted()

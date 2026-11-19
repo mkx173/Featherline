@@ -1,12 +1,11 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.actionParametersOf
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -21,12 +20,14 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
+import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -42,13 +43,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -62,6 +64,7 @@ class QuickLogActionCallbackTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
         coEvery { rebuildNow() } just Runs
     }
+    private val reminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
 
     @After
     fun tearDown() {
@@ -107,7 +110,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
@@ -164,11 +167,12 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
-        val action = launch { QuickLogActionCallback().onAction(context, mockk(), parameters) }
+        // The budget on the test's own clock: a slow real second (a GC pause) can't use it up.
+        val action = launch { QuickLogActionCallback(testTimeSource).onAction(context, mockk(), parameters) }
         runCurrent()
         advanceTimeBy(7_000L)
         runCurrent()
@@ -219,7 +223,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
             hideMedicationDetails = true
         )
@@ -238,14 +242,10 @@ class QuickLogActionCallbackTest {
 
     @Test
     fun onAction_showsFailureToastAndLogsWhenWidgetQuickLogWriteFails() = runTest {
-        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         mockkStatic(EntryPointAccessors::class)
-        mockkStatic(Toast::class)
         mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
-        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
         val appContext: Context = mockk()
-        val localizedContext: Context = mockk()
         val glanceId: GlanceId = mockk()
         val entryPoint: WidgetEntryPoint = mockk()
         val groupRepository: MedicationGroupRepository = mockk()
@@ -254,7 +254,6 @@ class QuickLogActionCallbackTest {
         val settingsRepository: SettingsRepository = mockk()
         val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
         val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
-        val toast: Toast = mockk(relaxed = true)
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val group = medicationGroup(
             uuid = UUID.fromString("7f8f2630-bf28-4d6c-994d-35e09bfe895e"),
@@ -262,15 +261,12 @@ class QuickLogActionCallbackTest {
             medicationKey = MedicationKey.ESTRADIOL,
         )
         val failure = IllegalStateException("database write failed")
-        val failureMessage = "Unable to quick-log dose."
         val parameters = actionParametersOf(
             GroupUuidKey to group.uuid.toString(),
             ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
             ScheduledAtKey to scheduledAt.toString(),
         )
         every { context.applicationContext } returns appContext
-        every { appContext.withAppLanguage() } returns localizedContext
-        every { localizedContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
         every {
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
         } returns entryPoint
@@ -281,7 +277,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
-        every { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } throws failure
@@ -297,8 +293,8 @@ class QuickLogActionCallbackTest {
             )
         }
         coVerify { updateAllHrtWidgets(appContext) }
-        verify { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) }
-        verify { toast.show() }
+        // In the app language, as the notification manager's other toasts.
+        verify { notificationManager.showQuickLogFailedToast() }
     }
 
     @Test
@@ -343,7 +339,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
@@ -396,7 +392,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
             coEvery { groupRepository.getGroup(group.uuid) } returns group
             coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-            coEvery { logRepository.saveNewEntries(any()) } just Runs
+            coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
             coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
             coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
                 emptyList(),
@@ -409,6 +405,153 @@ class QuickLogActionCallbackTest {
             coVerify { updateAllHrtWidgets(appContext) }
             coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
             coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
+        }
+
+    @Test
+    fun onAction_whenAnotherWriterLoggedTheDoseFirst_refreshesAsAlreadyLogged() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("c2a4e8b1-5d3f-4a6c-8e9b-0f1d2c3b4a59"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns mockk {
+            coEvery { getCurrentSettings() } returns SettingsState()
+        }
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns mockk(relaxed = true)
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        // The notification logged the slot between this read and the write.
+        coEvery { logRepository.saveNewEntries(any()) } returns emptyList()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
+        coEvery { updateAllHrtWidgets(appContext) } just Runs
+
+        QuickLogActionCallback().onAction(context, mockk(), parameters)
+
+        coVerify { updateAllHrtWidgets(appContext) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        verify(exactly = 0) { notificationManager.showQuickLogFailedToast() }
+        coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
+    }
+
+    @Test
+    fun onAction_afterLogging_reconcilesTheDosesReminder() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("3f9a2c6e-1b84-4d07-a5e3-8c2d6f1b9e40"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val logRepository: MedicationLogRepository = mockk()
+        val context = givenQuickLogEntryPoint(group, logRepository)
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returnsMany listOf(
+            emptyList(),
+            listOf(recordFor(group, scheduledAt)),
+        )
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
+
+        QuickLogActionCallback().onAction(context, mockk(), quickLogParameters(group, scheduledAt))
+
+        coVerifyOrder {
+            logRepository.saveNewEntries(any())
+            reminderScheduler.rescheduleGroup(group.uuid, any())
+        }
+    }
+
+    @Test
+    fun onAction_whenTheDoseWasAlreadyLogged_stillReconcilesItsReminder() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("a7c41e9d-62b3-4f58-9e0a-d3b8f5c2a716"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val logRepository: MedicationLogRepository = mockk()
+        val context = givenQuickLogEntryPoint(group, logRepository)
+        // Logged in the app or from the notification, which may still be showing.
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns
+                listOf(recordFor(group, scheduledAt))
+
+        QuickLogActionCallback().onAction(context, mockk(), quickLogParameters(group, scheduledAt))
+
+        coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
+        coVerify { reminderScheduler.rescheduleGroup(group.uuid, any()) }
+    }
+
+    /** Wires the callback's entry point for [group], the reminder schedulers included. */
+    private fun givenQuickLogEntryPoint(
+        group: MedicationGroup,
+        logRepository: MedicationLogRepository,
+    ): Context {
+        mockkStatic(EntryPointAccessors::class)
+        mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns mockk(relaxed = true)
+        every { entryPoint.medicationReminderScheduler() } returns reminderScheduler
+        every { entryPoint.diagnosticsLogger() } returns mockk(relaxed = true)
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
+        coEvery { updateAllHrtWidgets(appContext) } just Runs
+        return context
+    }
+
+    private fun quickLogParameters(group: MedicationGroup, scheduledAt: LocalDateTime) =
+        actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+
+    /** An on-time record of the group's first medication for its dose at [scheduledAt]. */
+    private fun recordFor(group: MedicationGroup, scheduledAt: LocalDateTime) =
+        group.medications.first().let { medication ->
+            testMedicationLogEntry(
+                medicine = medication.medicine,
+                applicationType = medication.applicationType,
+                doseInstruction = medication.doseInstruction,
+                sourceGroupUuid = group.uuid,
+                appliedAt = testInstant(scheduledAt),
+                scheduledFor = scheduledAt,
+                scheduleTimeUuid = group.schedule.timeSlots.single().uuid,
+            )
         }
 
     private fun medicationGroup(
@@ -456,6 +599,46 @@ class QuickLogActionCallbackTest {
             maxPerAdministration = 1.0,
             state = state,
         )
+    }
+
+    // The database failing to open on a tap (getGroup throws) ends as every other quick-log
+    // failure does, with the "couldn't log" toast, not as an exception that Glance only logs.
+    @Test
+    fun onAction_showsTheFailedToast_whenTheGroupReadThrows() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk(relaxed = true)
+        val groupRepository: MedicationGroupRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val groupUuid = UUID.fromString("1246f246-6e7d-4fac-a16c-0a557dd0c7fd")
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        // As SQLCipher failing to open: the key is unavailable, or the file can't be read.
+        coEvery { groupRepository.getGroup(groupUuid) } throws IllegalStateException("database unavailable")
+
+        val thrown = runCatching {
+            QuickLogActionCallback().onAction(
+                context,
+                mockk<GlanceId>(),
+                actionParametersOf(
+                    GroupUuidKey to groupUuid.toString(),
+                    ScheduledAtKey to "2026-04-20T09:00",
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertNull("getGroup's failure left onAction", thrown)
+        verify { notificationManager.showQuickLogFailedToast() }
     }
 
     private companion object {

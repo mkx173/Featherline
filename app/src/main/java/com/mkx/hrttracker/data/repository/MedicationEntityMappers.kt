@@ -30,9 +30,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
-internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
-    medicinesByUuid: Map<String, Medicine>,
-): MedicationGroup {
+internal fun MedicationGroupWithItemsEntity.toScheduleModel(): MedicationGroupSchedule {
     val scheduleTimeSlots = scheduleTimes
         .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
         .map { time ->
@@ -42,21 +40,27 @@ internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
                 effectiveFrom = LocalDateTime.parse(time.effectiveFromLocalIso),
             )
         }
+    return MedicationGroupSchedule(
+        type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
+        interval = group.scheduleInterval,
+        since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
+        weeklyDaysOfWeek = weeklyDays
+            .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
+            .toSet(),
+        times = scheduleTimeSlots.map(MedicationGroupScheduleTime::time),
+        dayBoundary = MedicationDayBoundary.fromSwitch(group.dayEndsAtFourAm),
+        timeSlots = scheduleTimeSlots,
+    )
+}
+
+internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
+    medicinesByUuid: Map<String, Medicine>,
+): MedicationGroup {
     return MedicationGroup(
         uuid = UUID.fromString(group.uuid),
         name = group.name,
         colorKey = MedicationGroupColorKey.fromStorageValue(group.colorKey),
-        schedule = MedicationGroupSchedule(
-            type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
-            interval = group.scheduleInterval,
-            since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
-            weeklyDaysOfWeek = weeklyDays
-                .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
-                .toSet(),
-            times = scheduleTimeSlots.map(MedicationGroupScheduleTime::time),
-            dayBoundary = MedicationDayBoundary.fromSwitch(group.dayEndsAtFourAm),
-            timeSlots = scheduleTimeSlots,
-        ),
+        schedule = toScheduleModel(),
         medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
             item.toMedicationGroupMedicationModel(medicinesByUuid)
         },

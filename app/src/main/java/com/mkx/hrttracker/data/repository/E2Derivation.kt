@@ -35,7 +35,7 @@ import kotlin.math.roundToLong
  * It is also part of every estimate key and of the fit's identity, so nothing
  * an older engine derived or solved is reused.
  */
-const val PK_ENGINE_VERSION = 2
+const val PK_ENGINE_VERSION = 3
 
 /** SHA-256 of a canonical [HomeSnapshotCodec] encoding; hex, so a key holding it compares by value. */
 data class Digest(val hex: String) {
@@ -348,7 +348,8 @@ object E2Derivation {
 
     /**
      * What the solve reads (labs, dose events in absolute time, review
-     * dispositions, weight, config) and [PK_ENGINE_VERSION]. Not the origin,
+     * dispositions, the labs left out as dated after the run, weight,
+     * config) and [PK_ENGINE_VERSION]. Not the origin,
      * which only places the events, nor what the math ignores: a medicine's
      * stock or name, a review's timestamp.
      */

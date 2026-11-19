@@ -126,24 +126,22 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun setWeight(value: Double, unit: WeightUnit) {
-        viewModelScope.launch {
-            try {
-                userProfileRepository.setWeight(value, unit)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                mutationEvents.tryEmit(
-                    OnboardingMutationEvent.Failure(error, R.string.personalization_weight_update_failed)
-                )
-            }
-        }
+    fun setWeight(value: Double, unit: WeightUnit) = updateWeight {
+        userProfileRepository.setWeight(value, unit)
     }
 
-    fun clearWeight() {
+    /** The unit switch with sync on; the sync rewrites it from Health Connect's value. */
+    fun setWeightUnit(unit: WeightUnit) = updateWeight {
+        userProfileRepository.setWeightUnit(unit)
+        healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", sync = true)
+    }
+
+    fun clearWeight() = updateWeight { userProfileRepository.clearWeight() }
+
+    private fun updateWeight(block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                userProfileRepository.clearWeight()
+                block()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -166,7 +164,6 @@ class OnboardingViewModel @Inject constructor(
     private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Like Settings: disableSync() also clears the old reading's date.
                 if (enabled) {
                     healthConnectCapabilityReconciler.enableSync()
                 } else {

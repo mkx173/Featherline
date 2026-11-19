@@ -34,13 +34,18 @@ data class BackupSettingsSnapshot(
     val hazeBlurEnabled: Boolean = true,
     val classicNavigationBarEnabled: Boolean = false,
     val remindersEnabled: Boolean,
-    val healthConnectWeightSyncEnabled: Boolean = false,
+    // Both null in a backup from before reminder repeats: the restore keeps the device's setting.
+    val reminderRepeatCount: Int? = null,
+    val reminderRepeatIntervalMinutes: Int? = null,
+    // Null in a backup from before weight sync: the restore keeps the device's setting.
+    val healthConnectWeightSyncEnabled: Boolean? = null,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
     val appLockGracePeriodOption: String,
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val pkCalibrationIntroSeen: Boolean = false,
+    // An AppLanguageOption name, or FOLLOW_SYSTEM_APP_LANGUAGE.
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
     val homeE2ChartWindow: String = "SEVEN_DAYS",
@@ -71,7 +76,7 @@ data class BackupUserProfileSnapshot(
     val weightOriginalUnit: String,
     val updatedAtEpochMillis: Long? = null,
     // Additive (no snapshot version bump): a backup without it restores null,
-    // which only blanks the "Measured" time until the next sync.
+    // an undated weight until the next typed or synced one.
     val weightMeasuredAtEpochMillis: Long? = null,
 )
 
@@ -303,6 +308,10 @@ data class BackupNoteSnapshot(
 // night owl plan's doses before 04:00 to the next day.
 //
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 8
+
+// The app language follows the phone's. Builds before it fall back to the phone's language
+// mapped to a supported one, as for any language name they don't know.
+const val FOLLOW_SYSTEM_APP_LANGUAGE = "FOLLOW_SYSTEM"
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

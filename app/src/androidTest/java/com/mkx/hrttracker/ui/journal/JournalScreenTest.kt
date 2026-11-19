@@ -29,9 +29,11 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,6 +51,9 @@ private const val JournalScreenListTag = "journal-screen-list"
 class JournalScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    // Every save stays in flight unless a test settles it, as the ViewModel's would.
+    private val noteSaves = NoteSaves()
 
     // Tapping a timeline row that sits below the fold while another editor's IME is up is racy:
     // performScrollToNode brings it into view, but the IME animation and the open editor's
@@ -88,8 +93,10 @@ class JournalScreenTest {
                     onOpenMilestones = {},
                     onAddDate = { addDateRequested = true },
                     onOpenAllNotes = { allNotesOpened = true },
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -125,8 +132,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -173,8 +182,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -208,8 +219,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                     scrollToTopSignal = scrollToTopSignal,
                 )
             }
@@ -342,8 +355,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { savedTexts += it },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -395,9 +410,12 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { saved = true },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> saved = true; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
+                UnsavedChangesDialog(hazeState = null)
             }
         }
 
@@ -405,6 +423,8 @@ class JournalScreenTest {
             .performClick()
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Unsaved draft")
         composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
+        // The typed draft asks first (J1).
+        composeRule.onNodeWithText(context.getString(R.string.unsaved_changes_discard)).performClick()
 
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .assertIsDisplayed()
@@ -436,8 +456,10 @@ class JournalScreenTest {
                     // Mirror the real ViewModel: the save round-trips through the repository, so the
                     // note text is NOT fed back synchronously. The editor must hold the field until
                     // the saved text lands rather than blinking back to the "write about today" prompt.
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -474,8 +496,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -511,8 +535,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { savedTexts += it },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -551,9 +577,11 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
-                    onDeleteTodayNote = { deletedDates += today },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
+                    onDeleteTodayNote = { deletedDates += it },
                     onDeleteNote = { deletedDates += it },
                 )
             }
@@ -598,8 +626,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { todayNoteSaved = true },
-                    onSaveNote = { _, _ -> olderNoteSaved = true },
+                    onSaveTodayNote = { _, _ -> todayNoteSaved = true; noteSaves.start() },
+                    onSaveNote = { _, _ -> olderNoteSaved = true; noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -633,7 +663,8 @@ class JournalScreenTest {
                         )
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -667,7 +698,8 @@ class JournalScreenTest {
                         ),
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -714,7 +746,8 @@ class JournalScreenTest {
                         ),
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -756,10 +789,13 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { date, text ->
                         savedNotes += date to text
+                        noteSaves.start()
                     },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -783,17 +819,14 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
         composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsEnabled()
         composeRule.onNodeWithContentDescription(context.getString(R.string.save)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
-            .assertIsNotDisplayed()
+        // Cleared, Save offers to delete the note (J6); kept, the editor is still open.
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_confirmation))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
         composeRule.runOnIdle {
             assertTrue(savedNotes.isEmpty())
         }
 
-        composeRule.onNodeWithText("Yesterday note")
-            .assertIsDisplayed()
-            .performClick()
-        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
-            .performTextClearance()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Edited yesterday")
         composeRule.onNodeWithContentDescription(context.getString(R.string.save))
@@ -822,9 +855,12 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
+                UnsavedChangesDialog(hazeState = null)
             }
         }
 
@@ -834,8 +870,11 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Abandoned edit")
 
-        // Switch to row B without saving — the shared controller closes A without its cancel path.
+        // Switch to row B without saving: it asks first (J1), and Discard closes A, dropping its draft.
         tapTimelineRow("june-14")
+        composeRule.onNodeWithText(
+            InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.unsaved_changes_discard),
+        ).performClick()
 
         // Re-open A: the abandoned draft must NOT survive; the field shows the persisted text.
         tapTimelineRow("june-15")
@@ -861,8 +900,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                     // Simulate a delete that fails to persist: the note stays in uiState.
                     onDeleteTodayNote = {},
                     onDeleteNote = {},
@@ -898,8 +939,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { savedTexts += it },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -943,8 +986,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -981,8 +1026,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = {},
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -996,10 +1043,9 @@ class JournalScreenTest {
     @Test
     fun todayEditor_failedSave_keepsDraftAndReopensForRetry() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        // The composer's draft-recovery reacts to a bumped save-failure token. Simulate the VM:
-        // the save never feeds text back (failed write) and the token bumps. The draft must stay
-        // in the field and the editor must re-open for retry.
-        var token by mutableIntStateOf(0)
+        // The composer's draft-recovery follows its save's outcome. Simulate the VM: the save
+        // never feeds text back (failed write) and fails at once. The draft must stay in the
+        // field and the editor must re-open for retry.
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
@@ -1017,9 +1063,10 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { token++ },
-                    onSaveNote = { _, _ -> },
-                    noteSaveFailureToken = token,
+                    onSaveTodayNote = { _, _ -> noteSaves.start().also { noteSaves.settle(it, landed = false) } },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }

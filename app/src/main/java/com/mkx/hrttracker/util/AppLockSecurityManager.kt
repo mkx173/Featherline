@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
+import android.os.Build
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import com.mkx.hrttracker.R
@@ -37,6 +38,9 @@ class AppLockSecurityManager @Inject constructor(
         }
     }
 
+    // Before API 30 the device credential screen is an activity of its own, which stops ours.
+    fun credentialScreenStopsActivity(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+
     fun promptErrorMessageRes(errorCode: Int): Int? {
         return when (errorCode) {
             BiometricPrompt.ERROR_NEGATIVE_BUTTON,
@@ -59,8 +63,23 @@ class AppLockSecurityManager @Inject constructor(
     }
 
     companion object {
-        const val ALLOWED_AUTHENTICATORS: Int =
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        // On API 29 BiometricPrompt loses a PIN result: when "Use PIN" is tapped, Settings reports
+        // ERROR_CANCELED to the app and BiometricService then drops the PIN success. The
+        // confirm-credential screen offers the biometric too and returns its result, so API 29
+        // prompts with that instead.
+        val USES_CONFIRM_CREDENTIAL_SCREEN: Boolean
+            get() = Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
+
+        // Used by both the availability check and the prompt. androidx.biometric 1.1.0 rejects
+        // BIOMETRIC_STRONG | DEVICE_CREDENTIAL on API 28-29 (canAuthenticate reports UNSUPPORTED,
+        // PromptInfo.build() throws), so there any biometric or the device credential unlocks.
+        val ALLOWED_AUTHENTICATORS: Int
+            get() = if (Build.VERSION.SDK_INT in Build.VERSION_CODES.P..Build.VERSION_CODES.Q) {
+                BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            } else {
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            }
     }
 }

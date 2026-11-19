@@ -23,14 +23,16 @@ import com.mkx.hrttracker.model.medication.planDayScheduleEntryComparator
 import com.mkx.hrttracker.model.medication.buildMedicationDaySections
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.medication.instantAsOf
 import com.mkx.hrttracker.model.medication.isArchived
-import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.comingUpTimeRange
 import com.mkx.hrttracker.model.medication.isComingUpVisible
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
-import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
+import com.mkx.hrttracker.model.medication.scheduleOffsetMinutes
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
@@ -41,6 +43,7 @@ import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayStart
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -201,6 +204,8 @@ data class MainTodayDoseRowUiState(
     val doseAmountDelta: Double? = null,
     val loggedAt: LocalDateTime? = null,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
+    /** Real minutes from the slot to its log, or to now while unlogged: the trailing "late" text. */
+    val scheduleOffsetMinutes: Long = 0L,
     val fulfillingEntryUuids: List<UUID> = emptyList(),
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
@@ -282,8 +287,12 @@ internal fun buildMainE2Hero(
     // currently displayed minute still counts rather than hiding until the next
     // tick. When `now` is null no upper bound is applied (used by previews/tests).
     now: LocalDateTime? = null,
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant? = null,
 ): MainE2HeroUiState {
-    val lastDoseCutoff = now?.let { mainHomeLatestDoseCutoff(now = it, zoneId = zoneId) }
+    val lastDoseCutoff = now?.let {
+        mainHomeLatestDoseCutoff(now = it, zoneId = zoneId, clockNow = clockNow ?: it.atZone(zoneId).toInstant())
+    }
     val lastEstradiolEntry = findLastEstradiolEntry(
         entries = if (lastDoseCutoff == null) {
             entries
@@ -536,12 +545,15 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
     category: MedicationCategory = MedicationCategory.ANTIANDROGEN,
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant = now.atZone(zoneId).toInstant(),
 ): List<MainAntiandrogenCardUiState> {
+    val nowInstant = now.instantAsOf(clockNow, zoneId)
     // `entries` includes the schedule window, which can carry a dose the user
     // pre-logged for later today. Such a dose has not been taken yet, so exclude
     // anything after `now` from the last dose a card reports (mirrors the E2
     // hero's findLastEstradiolEntry bound).
-    val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId)
+    val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId, clockNow = clockNow)
     val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
         entry.category == category &&
                 lastDoseCutoff.contains(entry.appliedAt)
@@ -569,6 +581,7 @@ internal fun buildMainAntiandrogenCards(
                             medication = medication,
                             entries = entries,
                             now = now,
+                            nowInstant = nowInstant,
                             zoneId = zoneId,
                         )
                         val lastMatchingEntry = antiandrogenEntriesAtOrBeforeNow
@@ -636,19 +649,22 @@ private data class MainHomeLatestDoseCutoff(
 private fun mainHomeLatestDoseCutoff(
     now: LocalDateTime,
     zoneId: ZoneId,
+    /** Which pass of a fall-back hour [now] is on: the first would put the cutoff an hour early. */
+    clockNow: Instant,
 ): MainHomeLatestDoseCutoff {
     val minuteNow = now.truncatedTo(ChronoUnit.MINUTES)
+    val nowInstant = now.instantAsOf(clockNow, zoneId)
     return if (now == minuteNow) {
         // The home clock is minute-granular. When Room emits a dose logged at
         // 09:00:05 while the UI still says 09:00, treat it as part of the
         // current displayed minute instead of hiding it until the next tick.
         MainHomeLatestDoseCutoff(
-            instant = minuteNow.plusMinutes(1).atZone(zoneId).toInstant(),
+            instant = nowInstant.plus(Duration.ofMinutes(1)),
             inclusive = false,
         )
     } else {
         MainHomeLatestDoseCutoff(
-            instant = now.atZone(zoneId).toInstant(),
+            instant = nowInstant,
             inclusive = true,
         )
     }
@@ -671,6 +687,7 @@ internal fun buildMainTodaySection(
         ),
         now = now,
         zoneId = zoneId,
+        clockNow = now.atZone(zoneId).toInstant(),
     )
     val entriesByUuid = entries.associateBy { it.uuid }
     return mainTodaySectionUiState(
@@ -678,7 +695,7 @@ internal fun buildMainTodaySection(
         daySchedule = sections.todaySchedule,
         groups = groups,
         entriesByUuid = entriesByUuid,
-        now = now,
+        now = now.atZone(zoneId).toInstant(),
         zoneId = zoneId,
     )
 }
@@ -688,7 +705,7 @@ private fun mainTodaySectionUiState(
     daySchedule: PlanDaySchedule,
     groups: List<MedicationGroup>,
     entriesByUuid: Map<UUID, MedicationLogEntry>,
-    now: LocalDateTime,
+    now: Instant,
     zoneId: ZoneId,
 ): MainTodaySectionUiState {
     val todayRows = buildMainTodayRows(
@@ -727,12 +744,13 @@ internal fun buildMainLastNightSection(
         ),
         now = now,
         zoneId = zoneId,
+        clockNow = now.atZone(zoneId).toInstant(),
     )
     return mainLastNightSectionUiState(
         schedule = sections.lastNight,
         groups = groups,
         entriesByUuid = entries.associateBy { it.uuid },
-        now = now,
+        now = now.atZone(zoneId).toInstant(),
         zoneId = zoneId,
     )
 }
@@ -741,7 +759,7 @@ private fun mainLastNightSectionUiState(
     schedule: PlanDaySchedule?,
     groups: List<MedicationGroup>,
     entriesByUuid: Map<UUID, MedicationLogEntry>,
-    now: LocalDateTime,
+    now: Instant,
     zoneId: ZoneId,
 ): MainLastNightSectionUiState {
     if (schedule == null) {
@@ -783,13 +801,14 @@ internal fun buildMainComingUpSection(
         ),
         now = now,
         zoneId = zoneId,
+        clockNow = now.atZone(zoneId).toInstant(),
     )
     return mainComingUpSectionUiState(
         schedule = sections.comingUp,
         dayBoundary = sections.comingUpDayBoundary,
         groups = groups,
         entriesByUuid = entries.associateBy { it.uuid },
-        now = now,
+        now = now.atZone(zoneId).toInstant(),
         zoneId = zoneId,
     )
 }
@@ -799,7 +818,7 @@ private fun mainComingUpSectionUiState(
     dayBoundary: MedicationDayBoundary,
     groups: List<MedicationGroup>,
     entriesByUuid: Map<UUID, MedicationLogEntry>,
-    now: LocalDateTime,
+    now: Instant,
     zoneId: ZoneId,
 ): MainComingUpSectionUiState {
     if (schedule == null) {
@@ -844,6 +863,8 @@ internal fun buildMainDoseSections(
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
     allGroups: List<MedicationGroup> = groups,
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant = Instant.now(),
 ): MainDoseSectionsUiState {
     val sections = buildMedicationDaySections(
         source = MedicationDaySectionSource(
@@ -855,22 +876,24 @@ internal fun buildMainDoseSections(
         ),
         now = now,
         zoneId = zoneId,
+        clockNow = clockNow,
     )
     val entriesByUuid = entries.associateBy { it.uuid }
+    val nowInstant = now.instantAsOf(clockNow, zoneId)
     return MainDoseSectionsUiState(
         today = mainTodaySectionUiState(
             date = sections.today,
             daySchedule = sections.todaySchedule,
             groups = groups,
             entriesByUuid = entriesByUuid,
-            now = now,
+            now = nowInstant,
             zoneId = zoneId,
         ),
         lastNight = mainLastNightSectionUiState(
             schedule = sections.lastNight,
             groups = groups,
             entriesByUuid = entriesByUuid,
-            now = now,
+            now = nowInstant,
             zoneId = zoneId,
         ),
         comingUp = mainComingUpSectionUiState(
@@ -878,7 +901,7 @@ internal fun buildMainDoseSections(
             dayBoundary = sections.comingUpDayBoundary,
             groups = groups,
             entriesByUuid = entriesByUuid,
-            now = now,
+            now = nowInstant,
             zoneId = zoneId,
         ),
     )
@@ -963,7 +986,8 @@ private fun buildMainTodayRows(
     daySchedule: PlanDaySchedule,
     groups: List<MedicationGroup>,
     entriesByUuid: Map<UUID, MedicationLogEntry>,
-    now: LocalDateTime,
+    /** Now as an instant: the late offset counts real minutes, as the status does. */
+    now: Instant,
     zoneId: ZoneId,
 ): MainTodayRowsForDate {
     val groupsByUuid = groups.associateBy { group -> group.uuid }
@@ -1001,9 +1025,12 @@ private fun buildMainTodayRows(
             status = when {
                 scheduledEntry.isFulfilled -> MainTodayDoseStatus.DONE
                 scheduledEntry.isDueSoon -> MainTodayDoseStatus.DUE_SOON
-                scheduledAt.isBefore(now) -> MainTodayDoseStatus.OVERDUE
+                scheduledEntry.isPastDue -> MainTodayDoseStatus.OVERDUE
                 else -> MainTodayDoseStatus.UPCOMING
             },
+            scheduleOffsetMinutes = (lastFulfillingEntry ?: outsideScheduleWindowEntries.lastOrNull())
+                ?.let { entry -> scheduleOffsetMinutes(scheduledAt, entry, zoneId) }
+                ?: scheduleOffsetMinutes(scheduledAt, now, zoneId),
             doseAmountDelta = lastFulfillingEntry?.doseAmountDelta,
             loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
@@ -1061,7 +1088,6 @@ internal fun buildMainUpcomingSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = MainUpcomingLookaheadDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val groupsByBoundary = groups.groupBy { group -> group.schedule.dayBoundary }
@@ -1102,13 +1128,23 @@ internal fun buildMainUpcomingSection(
         )
     }
 
-    val lastLookaheadDate = now.toLocalDate().plusDays(lookaheadDays)
+    // The first medication day on or after [from] that some plan doses on, with no horizon, as
+    // reminders: a dose months away still shows. A plan with a medication misses every slot past
+    // its last record, so the scan below ends after the dosing days already logged ahead.
+    val dosingGroups = groups.filter { group -> group.medications.isNotEmpty() }
+    fun nextDosingDate(from: LocalDate): LocalDate? = dosingGroups.mapNotNull { group ->
+        val boundary = group.schedule.dayBoundary
+        group.occurrencesInPlanWindowFrom(start = medicationDayStart(from, boundary))
+            .firstOrNull()
+            ?.let { occurrence -> medicationDay(occurrence.scheduledFor, boundary) }
+    }.minOrNull()
+
     // A date after every plan's own tomorrow, so the rows and the header name the same day.
     val firstUpcomingDate = groupsByBoundary.keys.minOfOrNull { boundary ->
         medicationDay(now, boundary).plusDays(2)
     }
-    var date = firstUpcomingDate ?: lastLookaheadDate.plusDays(1)
-    while (!date.isAfter(lastLookaheadDate)) {
+    var date = firstUpcomingDate?.let(::nextDosingDate)
+    while (date != null) {
         val upcomingDate = date
         val upcomingRows = rowsOn { boundary ->
             upcomingDate.takeUnless { upcomingDate.isBefore(medicationDay(now, boundary).plusDays(2)) }
@@ -1120,7 +1156,7 @@ internal fun buildMainUpcomingSection(
                 rows = upcomingRows
             )
         }
-        date = date.plusDays(1)
+        date = nextDosingDate(upcomingDate.plusDays(1))
     }
 
     return MainUpcomingSectionUiState(
@@ -1136,6 +1172,7 @@ private fun mainPreviewEntriesForDate(
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId,
 ): List<PlanDayScheduleEntry> {
+    val groupsByUuid = groups.associateBy(MedicationGroup::uuid)
     return buildPlanDaySchedule(
         date = date,
         groups = groups,
@@ -1144,9 +1181,17 @@ private fun mainPreviewEntriesForDate(
         zoneId = zoneId,
         // Only scheduled rows are read, and a plan's rows only look at its own records,
         // which this lookup always finds; other plans' records only feed unplannedEntries.
-        groupsByUuid = groups.associateBy(MedicationGroup::uuid),
+        groupsByUuid = groupsByUuid,
     ).scheduledEntries
-        .filterNot { it.isFulfilled }
+        .filter { row ->
+            // A record logged early or late still takes the dose off the list, as on the Plan
+            // screen's upcoming list and in reminders.
+            MedicationSignature.fromGroupMedication(row.medication) in missingSlotCounts(
+                group = groupsByUuid.getValue(row.groupUuid),
+                slot = MedicationGroupSlotKey(row.scheduleTimeUuid, row.scheduledFor),
+                entries = entries,
+            )
+        }
 }
 
 private fun PlanDayScheduleEntry.toMainUpcomingDoseRow(): MainUpcomingDoseRowUiState =
@@ -1217,32 +1262,34 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
     medication: MedicationGroupMedication,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
+    nowInstant: Instant,
     zoneId: ZoneId,
 ): MainAntiandrogenDueSlot? {
-    return occurrencesBetweenInPlanWindow(
-        startDate = now.toLocalDate().minusDays(MainAntiandrogenDueLookbackDays),
-        endDate = now.toLocalDate().plusDays(MainAntiandrogenDueLookaheadDays),
-        zoneId = zoneId,
+    // No horizon, as reminders; the first slot past the medication's last record ends the scan.
+    return occurrencesInPlanWindowFrom(
+        start = now.toLocalDate().minusDays(MainAntiandrogenDueLookbackDays).atStartOfDay(),
     )
-        .asSequence()
         .firstNotNullOfOrNull { occurrence ->
             val scheduledAt = occurrence.scheduledFor
             val slot = MedicationGroupSlotKey(
                 scheduleTimeUuid = occurrence.scheduleTimeUuid,
                 scheduledFor = scheduledAt,
             )
-            val isFulfilled = isSlotFulfilledForMedication(
+            // A dose taken early or late, outside its window, is taken: Home doesn't
+            // ask for it again, as reminders don't.
+            val isTaken = missingSlotCounts(
                 group = this,
                 slot = slot,
-                medication = medication,
                 entries = entries,
-                zoneId = zoneId,
-            )
-            if (isFulfilled) {
+                medications = listOf(medication),
+            ).isEmpty()
+            if (isTaken) {
                 return@firstNotNullOfOrNull null
             }
 
-            if (now.isBefore(scheduledAt.plus(MainAntiandrogenDisplayGracePeriod))) {
+            // Between instants, as the dose rows' status.
+            val scheduledInstant = scheduledAt.atZone(zoneId).toInstant()
+            if (nowInstant.isBefore(scheduledInstant.plus(MainAntiandrogenDisplayGracePeriod))) {
                 MainAntiandrogenDueSlot(
                     scheduledAt = scheduledAt,
                     isPastDue = false,
@@ -1254,8 +1301,9 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                         scheduledFor = scheduledAt,
                         zoneId = zoneId,
                     ),
+                    zoneId = zoneId,
                 )
-                if (!now.isAfter(scheduledAt.plus(pastDueWindow))) {
+                if (!nowInstant.isAfter(scheduledInstant.plus(pastDueWindow))) {
                     MainAntiandrogenDueSlot(
                         scheduledAt = scheduledAt,
                         isPastDue = true,
@@ -1274,9 +1322,7 @@ private fun Double.toVicoXHour(): Double {
 private const val E2_TARGET_MIN_CANONICAL = 100.0
 private const val E2_TARGET_MAX_CANONICAL = 200.0
 private const val E2_UNIT_PG_ML = "pg/mL"
-private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
-private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L

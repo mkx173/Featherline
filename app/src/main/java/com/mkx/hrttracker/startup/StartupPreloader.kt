@@ -1,6 +1,9 @@
 package com.mkx.hrttracker.startup
 
+import android.app.Activity
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -12,12 +15,15 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.ToastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,12 +39,60 @@ class StartupPreloader @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val started = AtomicBoolean(false)
+    private val openStarted = AtomicBoolean(false)
     private val snapshotReminderStarted = AtomicBoolean(false)
     private val dbReminderStarted = AtomicBoolean(false)
+
+    // True once the startup open finds the database key lost. closeOnLostDatabaseKey toasts
+    // and closes the app on it; sticky, so a recreated or warm-relaunched activity does too.
+    private val _databaseKeyLost = MutableStateFlow(false)
+    val databaseKeyLost: StateFlow<Boolean> = _databaseKeyLost.asStateFlow()
+
+    /**
+     * The exit on a lost key, for MainActivity and WidgetConfigActivity once their first frame
+     * is up and unlocked, after they started the open ([startAfterFirstHomeFrame], or
+     * [startDatabaseOpen] alone): once it finds the key lost (nothing opens until the app's
+     * data is cleared), says so and closes [activity]'s task, on every exit, a warm relaunch's
+     * too. It's an app-context text toast, so it stays up once the task is gone. Suspends
+     * until then.
+     */
+    suspend fun closeOnLostDatabaseKey(activity: Activity) {
+        databaseKeyLost.first { it }
+        ToastManager.showMessageRes(R.string.database_key_unavailable)
+        activity.finishAndRemoveTask()
+    }
+
+    /**
+     * Only the startup open, for WidgetConfigActivity: it needs to learn whether the key is
+     * lost, not the warm-ups, the backfill or the reminder reschedule.
+     */
+    fun startDatabaseOpen() {
+        appScope.launch(Dispatchers.IO) { openDatabaseOnce() }
+    }
+
+    // Once per process, whichever path asks first.
+    private fun openDatabaseOnce() {
+        if (!openStarted.compareAndSet(false, true)) return
+        diagnosticsLogger.info(TAG, "database_warmup_start")
+        runCatching {
+            // openAndSignal, not get(): this is the normal in-app cold-start open, and
+            // a failure here must flip DatabaseHolder.openFailed or the journal's
+            // seeded flow (Milestones with no snapshot) waits forever.
+            databaseHolder.openAndSignal()
+        }.onSuccess {
+            diagnosticsLogger.info(TAG, "database_warmup_complete")
+        }.onFailure { throwable ->
+            diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
+            // The key is gone for good: only clearing the app's data opens a database
+            // again.
+            if (throwable is DatabaseKeyUnavailableException) {
+                _databaseKeyLost.value = true
+            }
+        }
+    }
 
     fun startAfterFirstHomeFrame() {
         if (!started.compareAndSet(false, true)) {
@@ -52,17 +106,7 @@ class StartupPreloader @Inject constructor(
         diagnosticsLogger.info(TAG, "startup_after_first_home_frame_enqueued")
         appScope.launch(Dispatchers.IO) {
             diagnosticsLogger.info(TAG, "startup_after_first_home_frame_start")
-            diagnosticsLogger.info(TAG, "database_warmup_start")
-            runCatching {
-                // openAndSignal, not get(): this is the normal in-app cold-start open, and
-                // a failure here must flip DatabaseHolder.openFailed or the journal's
-                // seeded flow (Milestones with no snapshot) waits forever.
-                databaseHolder.openAndSignal()
-            }.onSuccess {
-                diagnosticsLogger.info(TAG, "database_warmup_complete")
-            }.onFailure { throwable ->
-                diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
-            }
+            openDatabaseOnce()
 
             diagnosticsLogger.info(TAG, "repository_warmup_start")
             runCatching {
@@ -78,80 +122,91 @@ class StartupPreloader @Inject constructor(
 
             backfillPatchOffSingletonIfNeeded()
 
-            rescheduleAllSnoozes()
             rescheduleAllReminders()
             diagnosticsLogger.info(TAG, "startup_after_first_home_frame_complete")
         }
     }
 
-    fun startReminderRescheduleFromSnapshot(now: LocalDateTime = LocalDateTime.now()) {
+    fun startReminderRescheduleFromSnapshot() {
         if (!snapshotReminderStarted.compareAndSet(false, true)) {
             diagnosticsLogger.info(
                 TAG,
-                "snapshot_reminder_reschedule_skipped reason=already_started now=$now"
+                "snapshot_reminder_reschedule_skipped reason=already_started"
             )
             return
         }
 
-        diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_enqueued now=$now")
+        diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_enqueued")
         appScope.launch(Dispatchers.IO) {
-            diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start now=$now")
-            rescheduleAllSnoozes(now = now)
+            diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start")
+            // A data change, such as a restore, committed without its reconcile:
+            // the snapshot can predate it, and only rescheduleAll reconciles the
+            // reminders on screen. Room opens early for it, but only then.
+            if (runCatching { medicationReminderScheduler.isReconcilePending() }.getOrDefault(false)) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "snapshot_reminder_reschedule_skipped reason=reconcile_pending"
+                )
+                rescheduleAllReminders()
+                return@launch
+            }
             runCatching {
                 val snapshot = homeSnapshotRepository.currentState()?.homeData
                     ?: return@runCatching diagnosticsLogger.info(
                         TAG,
-                        "snapshot_reminder_reschedule_no_usable_snapshot now=$now"
+                        "snapshot_reminder_reschedule_no_usable_snapshot"
                     )
                 diagnosticsLogger.info(
                     TAG,
                     "snapshot_reminder_reschedule_using_snapshot " +
-                            "now=$now ${snapshot.reminderDiagnosticSummary()}"
+                            "${snapshot.reminderDiagnosticSummary()}"
                 )
-                medicationReminderScheduler.rescheduleFromHomeSnapshot(
-                    snapshot = snapshot,
-                    now = now,
-                )
-                diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete now=$now")
+                // Turned down once Home data changed since it was read: Room has the newer plans.
+                if (!medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot = snapshot)) {
+                    diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_skipped reason=stale")
+                    rescheduleAllReminders()
+                    return@runCatching
+                }
+                diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete")
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(
                     TAG,
-                    "snapshot_reminder_reschedule_failed now=$now",
+                    "snapshot_reminder_reschedule_failed",
                     throwable
                 )
             }
         }
     }
 
-    fun startReminderRescheduleFromWarmDatabase(now: LocalDateTime = LocalDateTime.now()) {
-        diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_enqueued now=$now")
+    fun startReminderRescheduleFromWarmDatabase() {
+        diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_enqueued")
         appScope.launch(Dispatchers.IO) {
-            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_start now=$now")
-            rescheduleAllSnoozes(now = now)
-            rescheduleAllReminders(now = now)
-            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_complete now=$now")
+            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_start")
+            rescheduleAllReminders()
+            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_complete")
         }
     }
 
-    private suspend fun rescheduleAllReminders(now: LocalDateTime = LocalDateTime.now()) {
+    private suspend fun rescheduleAllReminders() {
         runCatching {
-            rescheduleAllRemindersOnce(now = now)
+            rescheduleAllRemindersOnce()
         }.onFailure { throwable ->
-            diagnosticsLogger.warning(TAG, "reminder_reschedule_failed now=$now", throwable)
+            diagnosticsLogger.warning(TAG, "reminder_reschedule_failed", throwable)
         }
     }
 
-    private suspend fun rescheduleAllRemindersOnce(now: LocalDateTime) {
+    private suspend fun rescheduleAllRemindersOnce() {
         if (!dbReminderStarted.compareAndSet(false, true)) {
             diagnosticsLogger.info(
                 TAG,
-                "reminder_reschedule_skipped reason=already_started now=$now"
+                "reminder_reschedule_skipped reason=already_started"
             )
             return
         }
-        diagnosticsLogger.info(TAG, "reminder_reschedule_start now=$now")
-        medicationReminderScheduler.rescheduleAll(now = now)
-        diagnosticsLogger.info(TAG, "reminder_reschedule_complete now=$now")
+        // A pass that starts with a reconcile owed reposts every reminder on screen itself.
+        diagnosticsLogger.info(TAG, "reminder_reschedule_start")
+        medicationReminderScheduler.rescheduleAll()
+        diagnosticsLogger.info(TAG, "reminder_reschedule_complete")
     }
 
     // The PATCH_OFF singleton is auto-created when a NEW patch medicine is
@@ -177,16 +232,6 @@ class StartupPreloader @Inject constructor(
             }
         }.onFailure { throwable ->
             diagnosticsLogger.warning(TAG, "patch_off_singleton_backfill_failed", throwable)
-        }
-    }
-
-    private suspend fun rescheduleAllSnoozes(now: LocalDateTime = LocalDateTime.now()) {
-        runCatching {
-            diagnosticsLogger.info(TAG, "snooze_reschedule_start now=$now")
-            medicationReminderSnoozeScheduler.rescheduleAll(now = now)
-            diagnosticsLogger.info(TAG, "snooze_reschedule_complete now=$now")
-        }.onFailure { throwable ->
-            diagnosticsLogger.warning(TAG, "snooze_reschedule_failed now=$now", throwable)
         }
     }
 

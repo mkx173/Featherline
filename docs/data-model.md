@@ -31,7 +31,11 @@ format used for manual backups, see [backup-format.md](backup-format.md).
   the Android Keystore (`MASTER_KEY_ALIAS = "hrt_tracker_database_master_key"`),
   and the resulting ciphertext + IV is persisted to a regular
   `SharedPreferences` file (`hrt_tracker_secure_storage`). The
-  passphrase itself never leaves the device.
+  passphrase itself never leaves the device. It is made only while no
+  database file exists: a lost passphrase or key, or a key that doesn't
+  unwrap it, throws `DatabaseKeyUnavailableException` instead of making
+  a new one, and the app toasts that the data must be cleared and closes
+  (`StartupPreloader.closeOnLostDatabaseKey`).
 
 ## Entities
 
@@ -124,11 +128,44 @@ the body-weight inputs that feed PK simulation
 (`weightKg`, `weightOriginalValue`, `weightOriginalUnit` — the
 original value plus its display unit are kept so the UI can
 round-trip the user's chosen unit without re-converting). Updated
-timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis`
-serves read-only Health Connect weight sync (see `WeightSyncCoordinator`):
-the time of the adopted HC reading, null for a typed weight or none. It
-backs the weight sheet's "Measured ..." line and lets a sync skip the
-write when the reading hasn't changed. Clearing the weight keeps
+timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis` is
+the weight's date: the time a typed weight was saved, or the time of the
+adopted Health Connect reading (see `WeightSyncCoordinator`). It is null
+only with no weight, or for a weight saved before dates were kept or
+restored from a backup without one, until the next typed or synced weight.
+A typed weight stores it equal to `updatedAtEpochMillis`; an adopted
+reading's is always earlier than its sync's `updatedAtEpochMillis` (the
+read ends at the sync's time, exclusive), and the unit switch moves
+`updatedAtEpochMillis` alone, only on a reading. That equality is how
+`UserProfile.isHealthConnectReading` tells them apart for the Settings
+row's "· Health Connect": any new write that bumps `updatedAtEpochMillis`
+on a typed weight without moving its date would credit Health Connect.
+It backs the weight sheet's "recorded <date>" text and lets a sync skip the
+write when the reading hasn't changed. With sync on, HC's latest
+reading dated before now (the read ends at now, exclusive: on Android
+14+ connect-client rebuilds each record through the platform's, which
+refuses a time after now, so a wider read would turn one future-dated
+record into a failed sync; such a reading is read once its time comes)
+becomes the weight and its date if valid, rounded to 0.1 in the stored
+unit. With no reading before now, or an invalid latest one (under
+0.1 kg), the weight and its date stay; only the latest is read. A stored
+weight dated after now is treated like any other: a past reading
+replaces it, or it stays with its date. Why a sync kept the weight is
+`WeightSyncCoordinator.readingProblem`, in memory, not a column:
+`NONE_FOUND` with no reading, `INVALID` with an invalid latest one, and
+null after a valid reading. Turning sync off keeps the weight and its
+date and clears `readingProblem`; turning it on clears it again before the
+flag is set, and the sheet reads "Syncing…" until the new sync
+(`HealthConnectCapabilityState.syncPending`). With sync on, the unit
+switch works only while the weight shown is the last sync's valid
+reading (a weight, access, no sync pending or failed, no
+`readingProblem`). It stores the weight rounded to 0.1 in the new unit,
+with `weightKg` derived from that, as for an adopted reading, so the
+backup validator's kg/unit check still holds, and the date kept; nothing
+is written if that rounds to 0. It then forces a sync, which rewrites the
+row from HC's own value, so the final value never depends on the rounded
+one. If that sync fails, the converted value stays until the next one.
+Clearing the weight keeps
 `weightOriginalUnit`, so a later adopted reading shows in the user's
 unit.
 
@@ -146,9 +183,10 @@ owl; it can't change once the plan has records or is archived). Soft-deleted via
 active); the archived-at timestamp also acts as the plan's
 slot-generation end cutoff, and is user-selectable — it may be
 backdated to an earlier day's end of day instead of the archive
-moment. Replacement chains are tracked via `replacedByGroupUuid` and
-`recreatedFromGroupUuid` so an edited group can preserve historical
-fulfillment links.
+moment. `replacedByGroupUuid` and `recreatedFromGroupUuid` linked a plan
+to the one an older build's archive-and-recreate replaced it with. Nothing
+reads them now, and no new plan sets them: a save, a backup and the Home
+snapshot only carry them.
 
 ### `MedicationGroupItemEntity`
 
@@ -475,8 +513,9 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   table to match the supplied lists in one atomic step.
 - [`MedicationLogDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogDao.kt)
   — log inserts, batch reads by ID, the
-  `getLatestEntryByCategoryOnOrBefore` query, schedule-time renames
-  (`updateScheduledForTimeForEntries`), the
+  `getLatestEntryByCategoryOnOrBefore` query, schedule-time moves
+  (`moveScheduledForEntries`, which sets the new time and shifts the
+  date by a day offset), the
   `reclassifyEntriesForDeletedGroup` step that nulls out group
   references rather than dropping rows, and the
   `observeScheduledEntriesInWindow` / `getScheduledEntriesInWindow`

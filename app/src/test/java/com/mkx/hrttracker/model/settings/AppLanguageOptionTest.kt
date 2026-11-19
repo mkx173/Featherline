@@ -62,6 +62,13 @@ class AppLanguageOptionTest {
     }
 
     @Test
+    fun fromLocale_mapsCzech() {
+        assertEquals(AppLanguageOption.CZECH, AppLanguageOption.fromLocale(Locale.forLanguageTag("cs-CZ")))
+        // Slovak is close, but the app has no Slovak.
+        assertEquals(AppLanguageOption.ENGLISH, AppLanguageOption.fromLocale(Locale.forLanguageTag("sk-SK")))
+    }
+
+    @Test
     fun fromLocale_defaultsToEnglish() {
         assertEquals(
             AppLanguageOption.ENGLISH,

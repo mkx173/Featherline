@@ -17,7 +17,6 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.coEvery
@@ -50,8 +49,6 @@ class MedicationGroupEditorMedicineResolutionTest {
     private val medicineRepository: MedicineRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
-        mockk(relaxed = true)
     private val context: Context = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
     private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 25, 10, 0))
@@ -122,7 +119,6 @@ class MedicationGroupEditorMedicineResolutionTest {
                 medications = capture(savedMedications),
                 notificationsEnabled = any(),
                 includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
                 now = any(),
             )
         } returns savedGroupUuid
@@ -133,7 +129,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -203,7 +198,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -259,7 +253,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -303,7 +296,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -361,7 +353,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -400,7 +391,6 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,

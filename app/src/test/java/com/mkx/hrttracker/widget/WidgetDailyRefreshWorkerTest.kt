@@ -34,11 +34,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WidgetDailyRefreshWorkerTest {
@@ -72,6 +75,7 @@ class WidgetDailyRefreshWorkerTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true) {
         every { cache } returns this@WidgetDailyRefreshWorkerTest.cache
         every { generation } returns MutableStateFlow(state.generation)
+        every { rebuilding } returns MutableStateFlow(false)
         coEvery { currentState() } returns state
     }
     private val widgetSnapshotStore: WidgetSnapshotStore = mockk()
@@ -96,8 +100,8 @@ class WidgetDailyRefreshWorkerTest {
     @Test
     fun staleRows_withACurrentStateWithBothParts_areRebuiltFromIt_withoutARun() = runTest {
         // The record's builder needs the app's resources; what matters here is
-        // that the writer gets the state and the time.
-        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any(), any()) } returns true
+        // that the writer gets the state.
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
         val stale = listOf(
             // No record yet.
             null,
@@ -113,11 +117,137 @@ class WidgetDailyRefreshWorkerTest {
 
         for (snapshot in stale) refresh(snapshot)
 
-        coVerify(exactly = 5) { widgetSnapshotRepository.writeWidgetSnapshot(state, now) }
+        coVerify(exactly = 5) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
         verify(exactly = 0) { homeSnapshotRepository.requestRebuild() }
         coVerify(exactly = 5) { e2EstimateRepository.warmHome() }
         assertEquals(0, rerenders)
+    }
+
+    @Test
+    fun aRecordBuiltBeforeASectionStart_isRebuiltOnceItPasses_withNoRowToTurnStale() = runTest {
+        // A midnight-ending plan whose only dose is tomorrow at 00:30: built at 17:30, the
+        // record has no rows, and from 18:00 Home lists the dose under Coming up. The 18:00
+        // alarm was late, missed, or never armed because setting it threw.
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+        val builtBeforeSix = widget(builtAt = today.atTime(17, 30))
+
+        refresh(builtBeforeSix, at = today.atTime(17, 59))
+        assertEquals(1, rerenders)
+        refresh(builtBeforeSix, at = today.atTime(18, 15))
+
+        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+        assertEquals(1, rerenders)
+    }
+
+    @Test
+    fun aRecordBuiltAfterNow_isRebuilt_asAfterTheClockWasSetBackInTheSameZone() = runTest {
+        // The time-change rebuild didn't publish (a database error, or the process killed first).
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+        val overdue = widget(
+            builtAt = today.atTime(11, 10),
+            rows = listOf(row(WidgetDoseStatus.OVERDUE, today.atTime(10, 0))),
+        )
+
+        // Control: at the moment it was built the record is fresh, and only re-rendered.
+        refresh(overdue, at = today.atTime(11, 10))
+        assertEquals(1, rerenders)
+
+        // Set back to 08:45: the 10:00 dose is upcoming again.
+        refresh(overdue, at = today.atTime(8, 45))
+        // Set back across the 18:00 section start, with no row to turn stale.
+        refresh(widget(builtAt = today.atTime(18, 15)), at = today.atTime(17, 50))
+        // Set back to the evening before: its dates are ahead of now's.
+        refresh(widget(builtAt = today.atTime(0, 30)), at = today.minusDays(1).atTime(23, 50))
+
+        coVerify(exactly = 3) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+        assertEquals(1, rerenders)
+    }
+
+    @Test
+    fun doWork_readsTheRecordBeforeTheClock() {
+        // A widget write between the two reads would otherwise look built after now, and be
+        // rewritten for nothing. doWork needs the Hilt entry point, so this reads its source.
+        var root = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
+        while (!File(root, "settings.gradle.kts").exists()) root = requireNotNull(root.parentFile)
+        val doWork = File(root, "app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt")
+            .readText().substringAfter("override suspend fun doWork()").substringBefore("handleWidgetDailyRefresh(")
+        assertTrue(doWork.indexOf("readSnapshot()") in 0 until doWork.indexOf("Instant.now()"))
+    }
+
+    @Test
+    fun aRecordNotBuiltFromTheCurrentState_isRewrittenFromIt_asAfterAWidgetWriteThatThrew() = runTest {
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+        val stamp = now.atZone(zoneId).toInstant().toEpochMilli()
+        val published = state.copy(homeData = state.homeData?.copy(generatedAtEpochMillis = stamp))
+        coEvery { homeSnapshotRepository.currentState() } returns published
+
+        // Built from the state before, at this very minute; the publish's own write threw.
+        refresh(widget(builtAt = now, source = stamp - 1))
+        // A record from before the stamp existed.
+        refresh(widget(source = null))
+        // Built from it, even if earlier by the clock (set back since).
+        refresh(widget(builtAt = now.minusHours(1), source = stamp))
+
+        coVerify(exactly = 2) { widgetSnapshotRepository.writeWidgetSnapshot(published) }
+        assertEquals(1, rerenders)
+    }
+
+    @Test
+    fun aRewriteThatThrows_stillReRendersAndWarms() = runTest {
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } throws IllegalStateException("disk full")
+
+        refresh(widget(source = null))
+
+        assertEquals(1, rerenders)
+        coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
+        coVerify(exactly = 1) { e2EstimateRepository.warmHome() }
+    }
+
+    @Test
+    fun aDoseStatus_isStaleByTheInstant_acrossBothDstChanges() = runTest {
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+            // Fall back: at 01:10 EST a 00:30 dose is 100 minutes past, though the wall clock says 40.
+            val fallBack = LocalDateTime.of(2026, 11, 1, 1, 10)
+            val dueSoonAtMidnightThirty = widget(
+                anchorDate = fallBack.toLocalDate(),
+                builtAt = fallBack.minusMinutes(1),
+                rows = listOf(row(WidgetDoseStatus.DUE_SOON, fallBack.withMinute(30).withHour(0))),
+            )
+            refresh(dueSoonAtMidnightThirty, at = fallBack, clockNow = fallBack.atOffset(ZoneOffset.ofHours(-5)).toInstant())
+            // On the first pass, an hour earlier in real time, it is still due soon.
+            refresh(dueSoonAtMidnightThirty, at = fallBack, clockNow = fallBack.atOffset(ZoneOffset.ofHours(-4)).toInstant())
+            // And at 01:31 EST a 02:30 EST dose turns due soon.
+            val secondPass = LocalDateTime.of(2026, 11, 1, 1, 31)
+            refresh(
+                widget(
+                    anchorDate = fallBack.toLocalDate(),
+                    builtAt = secondPass.minusMinutes(1),
+                    rows = listOf(row(WidgetDoseStatus.UPCOMING, secondPass.withHour(2).withMinute(30))),
+                ),
+                at = secondPass,
+                clockNow = secondPass.atOffset(ZoneOffset.ofHours(-5)).toInstant(),
+            )
+            // Spring forward: at 01:45 EST a 03:30 EDT dose is 45 minutes away, though the wall clock says 105.
+            val springForward = LocalDateTime.of(2026, 3, 8, 1, 45)
+            refresh(
+                widget(
+                    anchorDate = springForward.toLocalDate(),
+                    builtAt = springForward.minusMinutes(1),
+                    rows = listOf(row(WidgetDoseStatus.UPCOMING, springForward.withHour(3).withMinute(30))),
+                ),
+                at = springForward,
+                clockNow = springForward.atOffset(ZoneOffset.ofHours(-5)).toInstant(),
+            )
+
+            coVerify(exactly = 3) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+            assertEquals(1, rerenders)
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
     }
 
     @Test
@@ -150,6 +280,28 @@ class WidgetDailyRefreshWorkerTest {
     }
 
     @Test
+    fun freshRows_behindAWriteTheRebuildWorkerGaveUpOn_askForARun() = runTest {
+        // Finding 1: behind a write, or missing a part, with no run pending or going.
+        val rebuilding = MutableStateFlow(false)
+        every { homeSnapshotRepository.rebuilding } returns rebuilding
+        val fresh = widget(rows = listOf(row(WidgetDoseStatus.UPCOMING, now.plusHours(2))))
+        for (current in listOf(null, state.copy(e2Inputs = null), state.copy(homeData = null))) {
+            if (current != null) cache.value = current
+            coEvery { homeSnapshotRepository.currentState() } returns current
+            refresh(fresh)
+        }
+        coVerify(exactly = 3) { homeSnapshotRepository.rebuildNow() }
+        assertEquals(0, rerenders)
+
+        // A run pending or going: its publish rewrites the widget, so this only re-renders.
+        rebuilding.value = true
+        coEvery { homeSnapshotRepository.currentState() } returns null
+        refresh(fresh)
+        coVerify(exactly = 3) { homeSnapshotRepository.rebuildNow() }
+        assertEquals(1, rerenders)
+    }
+
+    @Test
     fun anUnchangedKey_onlyComputesTheKey_andAfterTheDateChangesDerivesOnce() = runTest {
         stored = HomeE2EstimateRecord(
             key = keyAt(now),
@@ -163,7 +315,7 @@ class WidgetDailyRefreshWorkerTest {
             derivations++
             callOriginal()
         }
-        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any(), any()) } returns true
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
         val estimates = estimateRepository()
 
         // Fresh rows: the widget is re-rendered, and the stored estimate
@@ -191,17 +343,68 @@ class WidgetDailyRefreshWorkerTest {
         assertEquals(1, derivations)
         assertEquals(1, writes)
         assertEquals(keyAt(tomorrow), stored?.key)
-        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state, tomorrow) }
+        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
         assertEquals(2, rerenders)
         // No Room read and no solve: only a run does either.
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
         verify(exactly = 0) { homeSnapshotRepository.requestRebuild() }
     }
 
+    @Test
+    fun aRecordBuiltInAnotherZone_isStale_afterWestwardTravel() = runTest {
+        val defaultZone = TimeZone.getDefault()
+        try {
+            coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+            // Built in Tokyo at 08:00 on May 21, now 16:00 on May 20 in Los Angeles: the same
+            // instant, and every date of the record is a day ahead of now's.
+            val tokyo = ZoneId.of("Asia/Tokyo")
+            val builtInTokyo = widget(
+                anchorDate = today.plusDays(1),
+                builtAt = today.plusDays(1).atTime(8, 0),
+                zone = tokyo,
+            )
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"))
+            val inLosAngeles = today.atTime(16, 0)
+
+            // Before the zone-change run publishes, the handout withholds the old zone's cache:
+            // the worker writes nothing from it and waits for the run.
+            coEvery { homeSnapshotRepository.currentState() } returns null
+            refresh(builtInTokyo, at = inLosAngeles)
+            assertEquals(0, rerenders)
+            coVerify(exactly = 0) { widgetSnapshotRepository.writeWidgetSnapshot(any()) }
+            coVerify(exactly = 1) { homeSnapshotRepository.rebuildNow() }
+
+            // The run's publish, built in Los Angeles: the record is rewritten from it.
+            val losAngeles = "America/Los_Angeles"
+            val published = state.copy(
+                homeData = state.homeData!!.copy(zoneId = losAngeles),
+                e2Inputs = state.e2Inputs!!.copy(zoneId = losAngeles),
+            )
+            coEvery { homeSnapshotRepository.currentState() } returns published
+            refresh(builtInTokyo, at = inLosAngeles)
+            assertEquals(0, rerenders)
+            coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(published) }
+            // Once the wall clock has passed builtAt, on the record's own date and before its next
+            // section start, only the zone tells it apart.
+            refresh(builtInTokyo, at = today.plusDays(1).atTime(9, 0))
+            assertEquals(0, rerenders)
+            coVerify(exactly = 2) { widgetSnapshotRepository.writeWidgetSnapshot(published) }
+            coEvery { homeSnapshotRepository.currentState() } returns state
+
+            // The same record in its own zone is fresh: only re-rendered.
+            TimeZone.setDefault(TimeZone.getTimeZone(tokyo))
+            refresh(builtInTokyo, at = today.plusDays(1).atTime(8, 0))
+            assertEquals(1, rerenders)
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
+    }
+
     private suspend fun refresh(
         snapshot: WidgetSnapshotRecord?,
         at: LocalDateTime = now,
         e2EstimateRepository: E2EstimateRepository = this.e2EstimateRepository,
+        clockNow: Instant = at.atZone(ZoneId.systemDefault()).toInstant(),
     ) = handleWidgetDailyRefresh(
         now = at,
         snapshot = snapshot,
@@ -209,6 +412,7 @@ class WidgetDailyRefreshWorkerTest {
         widgetSnapshotRepository = widgetSnapshotRepository,
         e2EstimateRepository = e2EstimateRepository,
         rerender = { rerenders++ },
+        clockNow = clockNow,
     )
 
     private val clock = MutableClock(now.atZone(zoneId).toInstant())
@@ -241,12 +445,17 @@ class WidgetDailyRefreshWorkerTest {
     private fun widget(
         anchorDate: LocalDate = today,
         fourAmAnchorDate: LocalDate = anchorDate,
+        builtAt: LocalDateTime = anchorDate.atTime(now.toLocalTime()),
         rows: List<WidgetDoseRow> = emptyList(),
+        // Built from [state] unless a test says otherwise.
+        source: Long? = state.homeData?.generatedAtEpochMillis,
+        zone: ZoneId = ZoneId.systemDefault(),
     ) = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
-        zoneId = zoneId.id,
+        zoneId = zone.id,
         anchorDateEpochDay = anchorDate.toEpochDay(),
         fourAmAnchorDateEpochDay = fourAmAnchorDate.toEpochDay(),
+        builtAt = builtAt,
         doneCount = 0,
         totalCount = rows.size,
         manualCount = 0,
@@ -257,6 +466,7 @@ class WidgetDailyRefreshWorkerTest {
         appLanguageTag = "en",
         doseRows = rows,
         pkProjection = null,
+        sourceGeneratedAtEpochMillis = source,
     )
 
     private fun row(status: WidgetDoseStatus, scheduledAt: LocalDateTime) = WidgetDoseRow(

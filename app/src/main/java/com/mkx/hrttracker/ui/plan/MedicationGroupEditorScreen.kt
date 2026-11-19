@@ -53,7 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
@@ -96,6 +95,7 @@ import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.SaveRefusal
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -118,6 +118,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.HrtTooltipBox
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -139,6 +140,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -185,7 +187,7 @@ fun MedicationGroupEditorScreen(
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
-    val startedAsNewGroupCreationFlow = remember { !uiState.isEditing }
+    val startedAsNewGroupCreationFlow = rememberStartedAsNewGroupCreationFlow(uiState)
     val isNewGroupCreationFlow = resolveMedicationGroupEditorIsNewGroupCreationFlow(
         uiState = uiState,
         startedAsNewGroupCreationFlow = startedAsNewGroupCreationFlow,
@@ -360,6 +362,7 @@ fun MedicationGroupEditorScreen(
     MedicationGroupEditorScreenContent(
         uiState = uiState,
         onNavigateBack = navigateBackAskingFirst,
+        onRetryLoadingGroup = viewModel::retryLoadingGroup,
         onGroupNameChange = viewModel::updateGroupName,
         onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,
@@ -462,14 +465,14 @@ fun MedicationGroupEditorScreen(
         onDeleteMedicationGroupResultConsumed = viewModel::consumeDeleteMedicationGroupResult,
         onArchiveClick = viewModel::showArchiveConfirmation,
         onArchiveDismiss = viewModel::dismissArchiveConfirmation,
-        onArchiveConfirm = viewModel::archiveGroup,
+        onArchiveConfirm = { archivedThroughDate -> viewModel.archiveGroup(archivedThroughDate) },
         onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
         onDuplicateArchivedGroupClick = viewModel::duplicateArchivedGroup,
         onDuplicateArchivedGroupResultConsumed =
             viewModel::consumeDuplicateArchivedGroupResult,
-        onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
-        onArchiveAndRecreateMedicationGroupResultConsumed =
-            viewModel::consumeArchiveAndRecreateMedicationGroupResult,
+        onArchiveAndDuplicateConfirm = { archivedThroughDate ->
+            viewModel.archiveGroup(archivedThroughDate, thenDuplicate = true)
+        },
         onDeleteClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteGroup,
@@ -488,6 +491,7 @@ private fun MedicationGroupEditorScreenContent(
     modifier: Modifier = Modifier,
     uiState: MedicationGroupEditorUiState,
     onNavigateBack: () -> Unit,
+    onRetryLoadingGroup: () -> Unit = {},
     onGroupNameChange: (String) -> Unit,
     onGroupColorChange: (MedicationGroupColorKey) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
@@ -506,10 +510,11 @@ private fun MedicationGroupEditorScreenContent(
     onWeeklyIntervalChange: (String) -> Unit,
     onWeeklyDayChange: (DayOfWeek) -> Unit,
     onWeeklyResetDaysOfWeek: () -> Unit,
-    onWeeklyTimeChange: (LocalTime) -> Unit,
+    // Null when taken, else why it was refused: the picker then stays open.
+    onWeeklyTimeChange: (LocalTime) -> SaveRefusal?,
     onDailyIntervalChange: (String) -> Unit,
     onAddDailyTime: (LocalTime) -> Unit,
-    onDailyTimeChange: (String, LocalTime) -> Unit,
+    onDailyTimeChange: (String, LocalTime) -> SaveRefusal?,
     onRemoveDailyTime: (String) -> Unit,
     onAddMedication: () -> Unit,
     onMedicationClick: (String) -> Unit,
@@ -537,8 +542,7 @@ private fun MedicationGroupEditorScreenContent(
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
     onDuplicateArchivedGroupResultConsumed: () -> Unit,
-    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
-    onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
+    onArchiveAndDuplicateConfirm: (LocalDate?) -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
@@ -588,14 +592,22 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_disabled)
     val saveMedicationGroupFailureMessage =
         stringResource(R.string.save_medication_group_failure)
+    val loggedDoseBeforeStartMessage =
+        stringResource(R.string.group_schedule_time_moves_logged_dose_before_start)
+    // The picker checks the time picked. Only a retime that moves a logged dose before the
+    // start is refused there; the other refusals need a record or a deletion that came first,
+    // which the picker lets through to Save, so they only fail plainly.
+    val showTimeRefusal = { refusal: SaveRefusal ->
+        if (refusal == SaveRefusal.LOGGED_DOSE_BEFORE_START) {
+            Toast.makeText(context, loggedDoseBeforeStartMessage, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, saveMedicationGroupFailureMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
     val archiveMedicationGroupBlockedByPlannedSlotsMessage =
         stringResource(R.string.archive_medication_group_blocked_by_planned_slots)
-    val archiveAndRecreateMedicationGroupFailureMessage =
-        stringResource(R.string.archive_and_recreate_medication_group_failure)
-    val archiveAndRecreateMedicationGroupSuccessMessage =
-        stringResource(R.string.archive_and_recreate_medication_group_success)
     val deleteMedicationGroupFailureMessage =
         stringResource(R.string.delete_medication_group_failure)
     val scheduleOptions = remember {
@@ -733,7 +745,12 @@ private fun MedicationGroupEditorScreenContent(
 
     LaunchedEffect(uiState.saveMedicationGroupResult) {
         when (uiState.saveMedicationGroupResult) {
-            SaveMedicationGroupResult.FAILURE -> {
+            // A refused Save comes from a race (a dose logged mid-edit, the plan deleted, or a
+            // draft the picker let through after one): rare, so it only says it failed.
+            SaveMedicationGroupResult.FAILURE,
+            SaveMedicationGroupResult.LOCKED_BY_RECORDS,
+            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START,
+            SaveMedicationGroupResult.GROUP_DELETED -> {
                 Toast.makeText(
                     context,
                     saveMedicationGroupFailureMessage,
@@ -785,39 +802,6 @@ private fun MedicationGroupEditorScreenContent(
         }
     }
 
-    LaunchedEffect(uiState.archiveAndRecreateMedicationGroupResult) {
-        when (uiState.archiveAndRecreateMedicationGroupResult) {
-            ArchiveAndRecreateMedicationGroupResult.SUCCESS -> {
-                Toast.makeText(
-                    context,
-                    archiveAndRecreateMedicationGroupSuccessMessage,
-                    Toast.LENGTH_SHORT,
-                ).show()
-                onArchiveAndRecreateMedicationGroupResultConsumed()
-            }
-
-            ArchiveAndRecreateMedicationGroupResult.FAILURE -> {
-                Toast.makeText(
-                    context,
-                    archiveAndRecreateMedicationGroupFailureMessage,
-                    Toast.LENGTH_SHORT,
-                ).show()
-                onArchiveAndRecreateMedicationGroupResultConsumed()
-            }
-
-            ArchiveAndRecreateMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS -> {
-                Toast.makeText(
-                    context,
-                    archiveMedicationGroupBlockedByPlannedSlotsMessage,
-                    Toast.LENGTH_LONG,
-                ).show()
-                onArchiveAndRecreateMedicationGroupResultConsumed()
-            }
-
-            null -> Unit
-        }
-    }
-
     LaunchedEffect(uiState.duplicateArchivedGroupSkippedCount) {
         val skipped = uiState.duplicateArchivedGroupSkippedCount ?: return@LaunchedEffect
         Toast.makeText(
@@ -837,11 +821,6 @@ private fun MedicationGroupEditorScreenContent(
             onDateSelected = onSinceDateChange,
             onDismiss = { pendingSinceDate = null },
             initialSelectedDate = initialSinceDate,
-            minimumDate = if (uiState.recreatedFromGroupId != null) {
-                maxOf(currentDate, uiState.originalSinceDate ?: currentDate)
-            } else {
-                null
-            },
         )
     }
 
@@ -855,8 +834,7 @@ private fun MedicationGroupEditorScreenContent(
             initialTime = initialStartTime,
             is24Hour = is24Hour,
             // Only offer a reset once a start is picked; "Now" is already the default.
-            // A recreated plan can't move its start earlier than its own.
-            onReset = if (!uiState.startsNow && uiState.recreatedFromGroupId == null) {
+            onReset = if (!uiState.startsNow) {
                 onResetStartToNow
             } else {
                 null
@@ -868,8 +846,7 @@ private fun MedicationGroupEditorScreenContent(
     pendingWeeklyTime?.let { initialWeeklyTime ->
         TimePickerModal(
             onTimeSelected = { selectedTime ->
-                onWeeklyTimeChange(selectedTime)
-                true
+                pickedTimeCloses(onWeeklyTimeChange(selectedTime), showTimeRefusal)
             },
             onDismiss = { pendingWeeklyTime = null },
             initialTime = initialWeeklyTime,
@@ -907,8 +884,10 @@ private fun MedicationGroupEditorScreenContent(
                     Toast.makeText(context, duplicateDailyTimeMessage, Toast.LENGTH_SHORT).show()
                     false
                 } else {
-                    onDailyTimeChange(dailyTimeEdit.localId, normalizedSelectedTime)
-                    true
+                    pickedTimeCloses(
+                        onDailyTimeChange(dailyTimeEdit.localId, normalizedSelectedTime),
+                        showTimeRefusal,
+                    )
                 }
             },
             onDismiss = { pendingDailyTimeEdit = null },
@@ -1007,8 +986,7 @@ private fun MedicationGroupEditorScreenContent(
         var hasAcknowledgedArchiveIsPermanent by rememberSaveable { mutableStateOf(false) }
         val isArchiveActionInProgress = uiState.isSaving ||
                 uiState.isFinishingAfterSave ||
-                uiState.isArchiving ||
-                uiState.isRecreatingAfterArchive
+                uiState.isArchiving
         val isArchiveBlockedByCurrentOrFuturePlannedSlots =
             uiState.currentOrFuturePlannedSlotCount > 0
         // null = the default "now" cutoff (bound at confirm time); a non-null
@@ -1080,9 +1058,9 @@ private fun MedicationGroupEditorScreenContent(
                                 supportingText = when {
                                     !uiState.archiveDateWindow.isLoaded -> null
                                     // No explicit pick archives as of now; an explicit date
-                                    // (incl. today) archives through the end of that day. A
-                                    // not-yet-started plan has no selectable backdate and
-                                    // stays on "Now".
+                                    // (yesterday at the latest) archives through the end of
+                                    // that day. A plan started or recorded today or later
+                                    // has no selectable backdate and stays on "Now".
                                     selectedArchiveDateValue == null ->
                                         stringResource(R.string.archive_medication_group_end_date_now)
 
@@ -1183,7 +1161,7 @@ private fun MedicationGroupEditorScreenContent(
                             focusManager = focusManager,
                             keyboardController = keyboardController,
                             onArchiveConfirm = onArchiveConfirm,
-                            onArchiveAndRecreateConfirm = onArchiveAndRecreateConfirm,
+                            onArchiveAndDuplicateConfirm = onArchiveAndDuplicateConfirm,
                         )
                     },
                     colors = ButtonDefaults.textButtonColors(
@@ -1392,7 +1370,25 @@ private fun MedicationGroupEditorScreenContent(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    LoadingIndicator()
+                    if (uiState.isGroupLoadFailed) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = contentPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.load_medication_group_failure),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            HrtFilledTonalButton(
+                                text = stringResource(R.string.load_medication_group_retry),
+                                onClick = onRetryLoadingGroup,
+                            )
+                        }
+                    } else {
+                        LoadingIndicator()
+                    }
                 }
                 return@AppContentContainer
             }
@@ -1532,16 +1528,9 @@ private fun MedicationGroupEditorScreenContent(
                                 referenceTime = resolvedOccurrenceReferenceTime,
                             )
                         ) {
-                            val recreatedLockedMessage =
-                                if (shouldShowRecreatedPastScheduleMessage(uiState)) {
-                                    stringResource(R.string.group_past_schedule_recreated_locked_note)
-                                } else {
-                                    null
-                                }
                             resolvePastScheduleSelectorState(
                                 uiState = uiState,
                                 isNewGroupCreationFlow = isNewGroupCreationFlow,
-                                lockedMessage = recreatedLockedMessage,
                             )
                         } else {
                             null
@@ -1557,30 +1546,12 @@ private fun MedicationGroupEditorScreenContent(
                             }
                         }
                     }
-                    val showRecreatedStartDatePastLimitMessage =
-                        shouldShowRecreatedStartDatePastLimitMessage(uiState)
                     Column {
-                        HrtSection(title = stringResource(R.string.group_start_title)) {
-                            if (showRecreatedStartDatePastLimitMessage) {
-                                item {
-                                    SupportMessageListItem(
-                                        text = stringResource(R.string.group_schedule_recreated_start_date_past_note),
-                                        painter = painterResource(R.drawable.ic_calendar_lock),
-                                        leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                        titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    )
-                                }
-                            }
-                        }
-                        if (showRecreatedStartDatePastLimitMessage) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
+                        HrtSection(title = stringResource(R.string.group_start_title)) {}
                         ScheduleStartEditor(
                             sinceDate = uiState.sinceDate,
                             startsNow = uiState.startsNow,
                             start = uiState.scheduleStartAt(resolvedOccurrenceReferenceTime),
-                            boundary = uiState.medicationDayBoundary,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onDateClick = { pendingSinceDate = uiState.sinceDate },
@@ -1591,8 +1562,7 @@ private fun MedicationGroupEditorScreenContent(
                             },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            enabled = !areFieldsRenderedLocked &&
-                                    !uiState.isScheduleStartDateLocked,
+                            enabled = !areFieldsRenderedLocked,
                             shapeLocked = areFieldsRenderedLocked,
                         )
                     }
@@ -1658,9 +1628,10 @@ private fun MedicationGroupEditorScreenContent(
                         Spacer(modifier = Modifier.height(8.dp))
                         if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                             WeeklyScheduleEditor(
-                                sinceDate = uiState.sinceDate,
+                                // The medication day its untouched weekday follows.
+                                sinceDate = uiState.scheduleSince(resolvedOccurrenceReferenceTime),
                                 intervalWeeks = uiState.weeklyIntervalWeeks,
-                                selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
+                                selectedDaysOfWeek = uiState.scheduleWeekdays(resolvedOccurrenceReferenceTime),
                                 firstDayOfWeek = uiState.firstDayOfWeek,
                                 time = uiState.weeklyTime,
                                 originalTime = uiState.originalWeeklyTime.takeIf {
@@ -1913,34 +1884,24 @@ internal fun buildMedicationGroupEditorUpcomingOccurrences(
     uiState: MedicationGroupEditorUiState,
     start: LocalDateTime
 ): List<LocalDateTime> {
-    return uiState.toEditorSchedule().nextOccurrencesFrom(
+    return uiState.toEditorSchedule(start).nextOccurrencesFrom(
         start = maxOf(uiState.scheduleStartAt(start), start),
         limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState),
     )
 }
 
-private fun MedicationGroupEditorUiState.toEditorSchedule(): MedicationGroupSchedule {
-    val uiState = this
-    return MedicationGroupSchedule(
-        type = uiState.scheduleType,
-        interval = when (uiState.scheduleType) {
-            MedicationGroupScheduleType.DAILY -> parseScheduleInterval(uiState.dailyIntervalDays)
-            MedicationGroupScheduleType.WEEKLY -> parseScheduleInterval(uiState.weeklyIntervalWeeks)
-        },
-        since = uiState.sinceDate,
-        weeklyDaysOfWeek = if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-            uiState.weeklyDaysOfWeek
-        } else {
-            emptySet()
-        },
-        times = if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-            listOf(uiState.weeklyTime)
-        } else {
-            uiState.dailyTimes.map(MedicationGroupScheduleTimeUiState::time)
-        },
-        dayBoundary = uiState.medicationDayBoundary,
-    )
-}
+// The schedule the draft saves, so the form shows the doses the save keeps.
+private fun MedicationGroupEditorUiState.toEditorSchedule(now: LocalDateTime): MedicationGroupSchedule =
+    toScheduleInput(now).let { input ->
+        MedicationGroupSchedule(
+            type = input.type,
+            interval = input.interval,
+            since = input.since,
+            weeklyDaysOfWeek = input.weeklyDaysOfWeek,
+            times = input.times,
+            dayBoundary = input.dayBoundary,
+        )
+    }
 
 internal fun medicationGroupEditorUpcomingOccurrenceLimit(
     uiState: MedicationGroupEditorUiState
@@ -1949,6 +1910,18 @@ internal fun medicationGroupEditorUpcomingOccurrenceLimit(
         MedicationGroupScheduleType.DAILY -> uiState.dailyTimes.size + 1
         MedicationGroupScheduleType.WEEKLY -> uiState.weeklyDaysOfWeek.size + 1
     }
+}
+
+/**
+ * Whether this editor has held a new plan: true from the first state that isn't an existing
+ * plan or still loading (a new plan, or a copy shown in place), and kept once its save gives
+ * it an id, so the closing screen doesn't turn into "Edit group".
+ */
+@Composable
+internal fun rememberStartedAsNewGroupCreationFlow(uiState: MedicationGroupEditorUiState): Boolean {
+    var started by remember { mutableStateOf(false) }
+    if (!started && !uiState.isEditing && !uiState.isLoadingGroupForEditing) started = true
+    return started
 }
 
 internal fun resolveMedicationGroupEditorIsNewGroupCreationFlow(
@@ -2007,7 +1980,6 @@ internal fun isMedicationGroupEditorNavigationLocked(
     return uiState.isSaving ||
             uiState.isDeleting ||
             uiState.isArchiving ||
-            uiState.isRecreatingAfterArchive ||
             uiState.isDeletingRelatedEntries ||
             uiState.isSaved ||
             uiState.isFinishingAfterSave ||
@@ -2065,20 +2037,29 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
             uiState.isFinishingAfterDeleteOrArchive
 }
 
+/**
+ * Whether a schedule time picker closes on a confirmed time: one the save would refuse
+ * ([refusal]) keeps it open with the reason, as a duplicate time does.
+ */
+internal fun pickedTimeCloses(refusal: SaveRefusal?, showRefusal: (SaveRefusal) -> Unit): Boolean {
+    refusal?.let(showRefusal)
+    return refusal == null
+}
+
 internal fun runArchiveConfirmationAction(
     shouldCreateActiveCopyAfterArchive: Boolean,
     archivedThroughDate: LocalDate?,
     focusManager: FocusManager,
     keyboardController: SoftwareKeyboardController?,
     onArchiveConfirm: (LocalDate?) -> Unit,
-    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
+    onArchiveAndDuplicateConfirm: (LocalDate?) -> Unit,
 ) {
     dismissInputAndRun(
         focusManager = focusManager,
         keyboardController = keyboardController,
     ) {
         if (shouldCreateActiveCopyAfterArchive) {
-            onArchiveAndRecreateConfirm(archivedThroughDate)
+            onArchiveAndDuplicateConfirm(archivedThroughDate)
         } else {
             onArchiveConfirm(archivedThroughDate)
         }
@@ -2092,7 +2073,6 @@ internal fun isMedicationGroupEditorBusy(
             uiState.isSaving ||
             uiState.isDeleting ||
             uiState.isArchiving ||
-            uiState.isRecreatingAfterArchive ||
             uiState.isDeletingRelatedEntries ||
             uiState.isSaved ||
             uiState.isFinishingAfterSave ||
@@ -2128,14 +2108,6 @@ internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
             )
 }
 
-internal fun shouldShowRecreatedStartDatePastLimitMessage(
-    uiState: MedicationGroupEditorUiState,
-): Boolean {
-    return !uiState.isArchived &&
-            uiState.recreatedFromGroupId != null &&
-            uiState.relatedEntryCount == 0
-}
-
 internal enum class PastScheduleOption {
     DO_NOT_SHOW,
     SHOW,
@@ -2157,10 +2129,8 @@ internal fun resolvePastScheduleOption(
 internal fun resolvePastScheduleSelectorState(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
-    lockedMessage: String?,
 ): PastScheduleSelectorUiState {
-    val pastScheduleOptionsEnabled = lockedMessage == null &&
-            uiState.canEditBackfillOption
+    val pastScheduleOptionsEnabled = uiState.canEditBackfillOption
     // Generating records only happens at save time, so a group that can't edit
     // its past schedule anymore (locked/archived) never offers it.
     val showGeneratePastRecordsOption = pastScheduleOptionsEnabled &&
@@ -2175,7 +2145,6 @@ internal fun resolvePastScheduleSelectorState(
         showGeneratePastRecordsOption = showGeneratePastRecordsOption,
         enabled = pastScheduleOptionsEnabled,
         interactive = pastScheduleOptionsEnabled,
-        lockedMessage = lockedMessage,
     )
 }
 
@@ -2184,7 +2153,7 @@ internal fun shouldShowPastScheduleSection(
     referenceTime: LocalDateTime,
 ): Boolean {
     // A plan with records can't change its past schedule anymore, so the card
-    // (choices or the recreated note) is hidden rather than shown disabled. An
+    // is hidden rather than shown disabled. An
     // existing plan waits for its entries so the card doesn't flash in before
     // they lock it.
     val isUnlocked = (!uiState.isEditing || uiState.areEntriesLoaded) &&
@@ -2192,14 +2161,11 @@ internal fun shouldShowPastScheduleSection(
             uiState.plannedEntryCount == 0
     return !uiState.isArchived &&
             isUnlocked &&
-            (
-                    shouldShowRecreatedPastScheduleMessage(uiState) ||
-                            uiState.canEditBackfillOption &&
-                            hasPastScheduleOptionWindow(
-                                uiState = uiState,
-                                referenceTime = referenceTime,
-                            )
-                    )
+            uiState.canEditBackfillOption &&
+            hasPastScheduleOptionWindow(
+                uiState = uiState,
+                referenceTime = referenceTime,
+            )
 }
 
 internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
@@ -2207,15 +2173,7 @@ internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
     isNewGroupCreationFlow: Boolean,
     isFinishingAfterSave: Boolean,
 ): Boolean {
-    return !uiState.isArchived &&
-            !shouldShowRecreatedPastScheduleMessage(uiState)
-}
-
-internal fun shouldShowRecreatedPastScheduleMessage(
-    uiState: MedicationGroupEditorUiState,
-): Boolean {
-    return !uiState.isArchived &&
-            (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
+    return !uiState.isArchived
 }
 
 /** Whether a dose falls between the plan start and [referenceTime]. */
@@ -2224,7 +2182,7 @@ internal fun hasPastScheduleOptionWindow(
     referenceTime: LocalDateTime,
 ): Boolean {
     val start = uiState.scheduleStartAt(referenceTime)
-    return uiState.toEditorSchedule()
+    return uiState.toEditorSchedule(referenceTime)
         .nextOccurrencesFrom(
             start = start,
             limit = 1,
@@ -2418,7 +2376,7 @@ private fun MedicationGroupColorPickerLeadingIcon(
     BackHandler(enabled = tooltipState.isVisible) {
         tooltipState.dismiss()
     }
-    TooltipBox(
+    HrtTooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
             TooltipAnchorPosition.Below,
         ),
@@ -2496,10 +2454,10 @@ private fun MedicationGroupEditorDailyPreview() {
             onWeeklyIntervalChange = { },
             onWeeklyDayChange = { },
             onWeeklyResetDaysOfWeek = { },
-            onWeeklyTimeChange = { },
+            onWeeklyTimeChange = { null },
             onDailyIntervalChange = { },
             onAddDailyTime = { },
-            onDailyTimeChange = { _, _ -> },
+            onDailyTimeChange = { _, _ -> null },
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
@@ -2527,8 +2485,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { _ -> },
-            onArchiveAndRecreateMedicationGroupResultConsumed = { },
+            onArchiveAndDuplicateConfirm = { _ -> },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
@@ -2575,10 +2532,10 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onWeeklyIntervalChange = { },
             onWeeklyDayChange = { },
             onWeeklyResetDaysOfWeek = { },
-            onWeeklyTimeChange = { },
+            onWeeklyTimeChange = { null },
             onDailyIntervalChange = { },
             onAddDailyTime = { },
-            onDailyTimeChange = { _, _ -> },
+            onDailyTimeChange = { _, _ -> null },
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
@@ -2606,8 +2563,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { _ -> },
-            onArchiveAndRecreateMedicationGroupResultConsumed = { },
+            onArchiveAndDuplicateConfirm = { _ -> },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
@@ -2695,10 +2651,10 @@ private fun MedicationGroupEditorPreviewContent(
         onWeeklyIntervalChange = { },
         onWeeklyDayChange = { },
         onWeeklyResetDaysOfWeek = { },
-        onWeeklyTimeChange = { },
+        onWeeklyTimeChange = { null },
         onDailyIntervalChange = { },
         onAddDailyTime = { },
-        onDailyTimeChange = { _, _ -> },
+        onDailyTimeChange = { _, _ -> null },
         onRemoveDailyTime = { },
         onAddMedication = { },
         onMedicationClick = { },
@@ -2726,8 +2682,7 @@ private fun MedicationGroupEditorPreviewContent(
         onArchiveMedicationGroupResultConsumed = { },
         onDuplicateArchivedGroupClick = { },
         onDuplicateArchivedGroupResultConsumed = { },
-        onArchiveAndRecreateConfirm = { _ -> },
-        onArchiveAndRecreateMedicationGroupResultConsumed = { },
+        onArchiveAndDuplicateConfirm = { _ -> },
         onDeleteClick = { },
         onDeleteDismiss = { },
         onDeleteConfirm = { },

@@ -43,18 +43,21 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
-    fun nextRefreshIsTheNextOfFourAmNoonAndMidnight() {
+    fun nextRefreshIsTheNextSectionStart() {
+        // 04:00, noon, 18:00 (Coming up opens for midnight plans) and midnight.
         val midnight = LocalDateTime.of(2026, 10, 2, 0, 0)
         assertEquals(midnight.withHour(4), nextWidgetDateRefreshAt(midnight))
         assertEquals(midnight.withHour(4), nextWidgetDateRefreshAt(midnight.withHour(1)))
         assertEquals(midnight.withHour(12), nextWidgetDateRefreshAt(midnight.withHour(4)))
         assertEquals(midnight.withHour(12), nextWidgetDateRefreshAt(midnight.withHour(11).withMinute(55)))
-        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(12)))
-        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(16).withMinute(45)))
+        assertEquals(midnight.withHour(18), nextWidgetDateRefreshAt(midnight.withHour(12)))
+        assertEquals(midnight.withHour(18), nextWidgetDateRefreshAt(midnight.withHour(16).withMinute(45)))
+        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(18)))
+        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(23).withMinute(59)))
     }
 
     @Test
-    fun scheduleNextWidgetDateRefresh_schedulesExactAlarmAtNextLocalMidnight() {
+    fun scheduleNextWidgetDateRefresh_schedulesExactAlarmAtTheNextSectionStart() {
         val triggerSlot = slot<Long>()
         val now = LocalDateTime.of(2026, 5, 22, 16, 45)
 
@@ -71,7 +74,7 @@ class WidgetMidnightRefreshSchedulerTest {
             )
         }
         assertEquals(
-            LocalDateTime.of(2026, 5, 23, 0, 0)
+            LocalDateTime.of(2026, 5, 22, 18, 0)
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli(),

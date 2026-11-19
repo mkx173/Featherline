@@ -60,7 +60,12 @@ fun <T : Any> Flow<T>.holdWhileUpdating(
                 send(Held(shown, isUpdating = true, latest = value))
             }
         } else {
-            if (!visible.value) minHold?.cancel()
+            if (!visible.value) {
+                // Nobody saw it. Dropped before the join, so a newer update that
+                // cancels the join starts a hold of its own.
+                minHold?.cancel()
+                minHold = null
+            }
             // A newer value cancels this wait and waits out the same hold.
             minHold?.join()
             minHold = null

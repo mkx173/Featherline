@@ -1,21 +1,17 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.showPostLogToast
-import com.mkx.hrttracker.util.withAppLanguage
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDateTime
@@ -24,14 +20,17 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
-class QuickLogActionCallback : ActionCallback {
+// Glance builds it with no arguments; a test passes its virtual clock.
+class QuickLogActionCallback internal constructor(
+    private val timeSource: TimeSource = TimeSource.Monotonic,
+) : ActionCallback {
 
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        val deadline = TimeSource.Monotonic.markNow() + HANDLE_BUDGET_MS.milliseconds
+        val deadline = timeSource.markNow() + HANDLE_BUDGET_MS.milliseconds
         val groupUuidStr = parameters[GroupUuidKey] ?: return
         val scheduleTimeUuidStr = parameters[ScheduleTimeUuidKey]
         val scheduledAtStr = parameters[ScheduledAtKey] ?: return
@@ -57,46 +56,8 @@ class QuickLogActionCallback : ActionCallback {
         val reminderNotificationManager = entryPoint.reminderNotificationManager()
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
 
-        val group = groupRepository.getGroup(groupUuid) ?: run {
-            diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
-            updateAllHrtWidgets(appContext)
-            return
-        }
-
-        if (group.isArchived() && !wasRenderedAsArchivedGroup) {
-            // The group may have been archived after an active widget row was rendered.
-            // Only rows that were already rendered as archived are allowed to re-log
-            // archived-group doses.
-            diagnosticsLogger.info(
-                TAG,
-                "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid"
-            )
-            updateAllHrtWidgets(appContext)
-            return
-        }
-
-        // Restrict to the tapped medication so the callback doesn't log all
-        // medications in the group when only one row was tapped. A non-null
-        // uuid that no longer resolves means the snapshot is stale (e.g. the
-        // medication was removed) — refresh and bail rather than logging the
-        // remaining siblings.
-        val targetGroup = if (medicationUuid != null) {
-            val match = group.medications.firstOrNull { it.uuid == medicationUuid }
-            if (match == null) {
-                diagnosticsLogger.warning(
-                    TAG,
-                    "widget_quick_log_medication_not_found uuid=$medicationUuid"
-                )
-                updateAllHrtWidgets(appContext)
-                return
-            }
-            group.copy(medications = listOf(match))
-        } else {
-            group
-        }
-
         val zoneId = ZoneId.systemDefault()
-        val appliedAt = LocalDateTime.now()
+        val appliedAt = Instant.now()
         val slot = MedicationReminderSlot(
             groupUuid = groupUuid,
             scheduledAt = scheduledAt,
@@ -104,6 +65,47 @@ class QuickLogActionCallback : ActionCallback {
         )
 
         try {
+            // First: each toast below, the failure's too, reads the app language from it.
+            val settings = settingsRepository.getCurrentSettings()
+            // In the try, as a database that can't open throws here first.
+            val group = groupRepository.getGroup(groupUuid) ?: run {
+                diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
+                updateAllHrtWidgets(appContext)
+                return
+            }
+
+            if (group.isArchived() && !wasRenderedAsArchivedGroup) {
+                // The group may have been archived after an active widget row was rendered.
+                // Only rows that were already rendered as archived are allowed to re-log
+                // archived-group doses.
+                diagnosticsLogger.info(
+                    TAG,
+                    "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid"
+                )
+                updateAllHrtWidgets(appContext)
+                return
+            }
+
+            // Restrict to the tapped medication so the callback doesn't log all
+            // medications in the group when only one row was tapped. A non-null
+            // uuid that no longer resolves means the snapshot is stale (e.g. the
+            // medication was removed) — refresh and bail rather than logging the
+            // remaining siblings.
+            val targetGroup = if (medicationUuid != null) {
+                val match = group.medications.firstOrNull { it.uuid == medicationUuid }
+                if (match == null) {
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "widget_quick_log_medication_not_found uuid=$medicationUuid"
+                    )
+                    updateAllHrtWidgets(appContext)
+                    return
+                }
+                group.copy(medications = listOf(match))
+            } else {
+                group
+            }
+
             // Load entries from scheduledAt onward — same approach used by the reminder action handler.
             val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
 
@@ -115,24 +117,37 @@ class QuickLogActionCallback : ActionCallback {
                 zoneId = zoneId,
             )
 
-            if (missingEntries.isNotEmpty()) {
-                // saveNewEntries goes through runHomeDataMutation, which asks for a run.
-                // HomeWidgetManager's cache observer picks up its publish and re-derives
-                // the widget snapshot — no explicit widget refresh needed.
-                // Snapshot stock before the deduction so the toast only fires for
-                // medicines this quick-log pushed into a worse tier.
-                val beforeStockStates = captureStockStatesForLog(
+            // Snapshot stock before the deduction so the toast only fires for
+            // medicines this quick-log pushed into a worse tier.
+            val beforeStockStates = if (missingEntries.isNotEmpty()) {
+                captureStockStatesForLog(
                     medicineStockRepository = medicineStockRepository,
                     now = Instant.from(appliedAt.atZone(zoneId)),
                 )
+            } else {
+                emptyMap()
+            }
+            // saveNewEntries goes through runHomeDataMutation, which asks for a run.
+            // HomeWidgetManager's cache observer picks up its publish and re-derives
+            // the widget snapshot — no explicit widget refresh needed. It decides again
+            // under the write lock: the notification or the app may have logged the
+            // dose since the read above.
+            val savedEntries = if (missingEntries.isNotEmpty()) {
                 logRepository.saveNewEntries(missingEntries)
+            } else {
+                emptyList()
+            }
+            // A reminder and its repeats may still name the dose, also when another writer
+            // logged it first, and the Home rebuild below doesn't reconcile them.
+            reconcileReminders(entryPoint, slot, diagnosticsLogger)
+            if (savedEntries.isNotEmpty()) {
                 showPostLogToast(
-                    entriesToSave = missingEntries,
+                    entriesToSave = savedEntries,
                     now = appliedAt,
                     medicineStockRepository = medicineStockRepository,
                     reminderNotificationManager = reminderNotificationManager,
                     beforeStatesByUuid = beforeStockStates,
-                    hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
+                    hideMedicationDetails = settings.hideMedicationDetails,
                 )
                 // Finish only once a run that read the log, and its warm-up,
                 // stored Home's estimate, so the next open shows it at once.
@@ -160,7 +175,30 @@ class QuickLogActionCallback : ActionCallback {
                 error,
             )
             refreshWidgetsBestEffort(appContext)
-            showQuickLogFailureToast(appContext)
+            reminderNotificationManager.showQuickLogFailedToast()
+        }
+    }
+
+    /**
+     * As the notification's Log now does after its write: the plan's next alert is armed past
+     * the logged dose, and the reminder naming it is cleared, or reposted with what is left.
+     * A failure here leaves the committed log as it is.
+     */
+    private suspend fun reconcileReminders(
+        entryPoint: WidgetEntryPoint,
+        slot: MedicationReminderSlot,
+        diagnosticsLogger: AppDiagnosticsLogger,
+    ) {
+        try {
+            entryPoint.medicationReminderScheduler().rescheduleGroup(slot.groupUuid)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diagnosticsLogger.warning(
+                TAG,
+                "widget_quick_log_reminders_failed slot=${slot.scheduledAt} group=${slot.groupUuid}",
+                error,
+            )
         }
     }
 
@@ -171,20 +209,6 @@ class QuickLogActionCallback : ActionCallback {
             throw error
         } catch (_: Exception) {
             // The stale widget state is secondary to surfacing the quick-log failure.
-        }
-    }
-
-    private suspend fun showQuickLogFailureToast(context: Context) {
-        // Resolve through the app language; below API 33 the application context stays
-        // on the system locale, so the toast would otherwise ignore the chosen language.
-        val localized = context.withAppLanguage()
-        val message = localized.getString(R.string.widget_quick_log_failed)
-        withContext(Dispatchers.Main) {
-            Toast.makeText(
-                localized,
-                message,
-                Toast.LENGTH_SHORT,
-            ).show()
         }
     }
 

@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -112,6 +113,98 @@ class HealthConnectCapabilityReconcilerTest {
         reconciler.enableSync()
         advanceUntilIdle()
         coVerify(exactly = 2) { coordinator.sync(any(), now) }
+    }
+
+    @Test
+    fun enableSync_clearsTheLastResultBeforeTheFlag_andSyncsItBack() = runTest {
+        // Off, with a problem a restore that turned sync off left.
+        syncEnabled = false
+        val reconciler = reconciler()
+
+        reconciler.enableSync()
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            coordinator.clearSyncResult()
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+            coordinator.sync(any(), now)
+        }
+
+        // Already on and synced this minute: what it cleared is still synced back.
+        reconciler.enableSync()
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
+    }
+
+    @Test
+    fun syncPending_untilASyncFinishes_andAgainOnceSyncIsTurnedOn() = runTest {
+        val reconciler = reconciler()
+        assertTrue(reconciler.state.value.syncPending)
+
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.syncPending)
+        // A resume within the minute doesn't sync, and the last one still stands.
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.syncPending)
+
+        // Turning sync on keeps the weight's date, so only this says a sync is due.
+        val readGate = CompletableDeferred<Unit>()
+        coEvery { coordinator.sync(any(), any()) } coAnswers { readGate.await() }
+        reconciler.enableSync()
+        // Before the reconcile it queued has even asked for access.
+        assertTrue(reconciler.state.value.syncPending)
+        runCurrent()
+        assertTrue(reconciler.state.value.syncPending)
+        readGate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.syncPending)
+    }
+
+    @Test
+    fun aForcedSyncThatThrowsInsideTheMinute_readsFailed_andIsRetriedOnTheNextResume() = runTest {
+        val reconciler = reconciler()
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+
+        // Sync now, or the sync after a unit switch, a few seconds later.
+        coEvery { coordinator.sync(any(), any()) } throws IllegalStateException("hc ipc")
+        now += Duration.ofSeconds(10)
+        reconciler.requestReconcile("weight_sync_now", sync = true)
+        advanceUntilIdle()
+        assertTrue(reconciler.state.value.syncFailed)
+
+        // A resume inside the minute retries it, rather than reading "Synced".
+        coEvery { coordinator.sync(any(), any()) } returns Unit
+        now += Duration.ofSeconds(10)
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
+        assertFalse(reconciler.state.value.syncFailed)
+        assertFalse(reconciler.state.value.syncPending)
+
+        // A sync that worked still arms the guard.
+        now += Duration.ofSeconds(10)
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 3) { coordinator.sync(any(), any()) }
+    }
+
+    @Test
+    fun syncTurnedOffWithoutDisable_publishesPending_soARestoreThatTurnsItBackOnReadsSyncing() = runTest {
+        val reconciler = reconciler()
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.syncPending)
+
+        // A restore writes the flag directly, not through disableSync().
+        syncEnabled = false
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        // Published now, so the state the sheet reads once a later restore turns
+        // the flag back on, before its own reconcile lands, says a sync is due.
+        assertTrue(reconciler.state.value.syncPending)
     }
 
     @Test

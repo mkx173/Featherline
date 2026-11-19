@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
@@ -17,7 +16,6 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,7 +35,6 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicineRepository @Inject internal constructor(
-    @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val stockMutator: MedicineStockMutator,
@@ -423,10 +420,18 @@ class MedicineRepository @Inject internal constructor(
                 val dao = database.medicineDao()
                 val existing = dao.getByUuid(uuid.toString())
                     ?: throw MedicineNotFoundException(uuid)
+                val existingMedicine = existing.toMedicineModel()
+                // The merged sheet sends the untouched preparation with a rename. It changes
+                // nothing, so no refusal below (a lock, an already-overfull container) may stop
+                // that save half done.
+                if (existingMedicine.preparation == preparation &&
+                    (displayDoseUnit == null || displayDoseUnit == existingMedicine.displayDoseUnit)
+                ) {
+                    return@withTransaction
+                }
                 if (dao.logReferenceCount(uuid.toString()) > 0) {
                     throw MedicineLockedException(uuid)
                 }
-                val existingMedicine = existing.toMedicineModel()
                 val newIdentityKey = when (val selection = existingMedicine.selection) {
                     is MedicineSelection.Catalog ->
                         MedicineIdentityKey.catalog(selection.medicationKey, preparation)
@@ -456,6 +461,20 @@ class MedicineRepository @Inject internal constructor(
                 // the untouched preparation alongside the new name, and on an
                 // unlocked medicine that round-trip used to wipe stock.
                 val storageFields = preparation.toStorageFields()
+                // A smaller vial or container than what's left in the open one would
+                // leave it overfull, and the next dose would split the stock into one
+                // container more than exists. Refuse; the user recounts first.
+                val openAmount = existing.openContainerAmount
+                val newCapacity = existing.copy(
+                    preparationType = storageFields.preparationType,
+                    vialVolumeMl = storageFields.vialVolumeMl,
+                    containerWeightGrams = storageFields.containerWeightGrams,
+                ).containerSizeOrNull()
+                if (existing.trackingEnabled && openAmount != null && newCapacity != null &&
+                    openAmount > newCapacity + FLOAT_EPSILON
+                ) {
+                    throw MedicineContainerOverfullException(uuid)
+                }
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
                 // no-op for the display unit. Normalize the existing value
@@ -555,9 +574,7 @@ class MedicineRepository @Inject internal constructor(
             }
         }
         if (notifyOnActiveExisting && activeExistingMedicineFound) {
-            ToastManager.showMessage(
-                context.getString(R.string.medicine_already_exists),
-            )
+            ToastManager.showMessageRes(R.string.medicine_already_exists)
         }
         return medicine
     }
@@ -591,3 +608,6 @@ class MedicineIdentityCollisionException(identityKey: String) :
 
 class MedicineReferencedByActiveGroupException(uuid: UUID) :
     IllegalStateException("Medicine $uuid is referenced by an active group.")
+
+class MedicineContainerOverfullException(uuid: UUID) :
+    IllegalStateException("Medicine $uuid has more in its open container than the new size holds.")

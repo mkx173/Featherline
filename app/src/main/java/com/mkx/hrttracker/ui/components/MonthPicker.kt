@@ -25,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -144,7 +147,7 @@ fun MonthPickerDialog(
                                 }
                         }
 
-                        MonthPickerWheel(
+                        PickerWheel(
                             options = wheelState.monthOptions.map { monthValue ->
                                 monthPickerMonthLabel(monthValue, appLocale)
                             },
@@ -152,7 +155,7 @@ fun MonthPickerDialog(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    MonthPickerWheel(
+                    PickerWheel(
                         options = wheelState.yearOptions.map(Int::toString),
                         state = yearWheelState,
                         modifier = Modifier.weight(1f),
@@ -174,53 +177,70 @@ fun MonthPickerDialog(
 }
 
 @Composable
-private fun MonthPickerWheel(
+internal fun PickerWheel(
     options: List<String>,
     state: WheelPickerState,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { if (!enabled) disabled() },
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        WheelPicker(
-            state = state,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            bufferSize = 1,
-            window = {
+        Box(modifier = Modifier.alpha(if (enabled) 1f else 0.38f)) {
+            WheelPicker(
+                state = state,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                bufferSize = 1,
+                window = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    )
+                },
+                animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow),
+            ) { index ->
+                val isSelected = state.index == index
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = options[index],
+                        style = if (isSelected) {
+                            MaterialTheme.typography.titleMedium
+                        } else {
+                            MaterialTheme.typography.bodyLarge
+                        },
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .alpha(if (isSelected) 1f else 0.72f)
+                            .padding(vertical = 8.dp),
+                    )
+                }
+            }
+            // ponytail: the wheel has no enabled flag; a cover on top takes its touches while disabled.
+            if (!enabled) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                )
-            },
-            animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow),
-        ) { index ->
-            val isSelected = state.index == index
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = options[index],
-                    style = if (isSelected) {
-                        MaterialTheme.typography.titleMedium
-                    } else {
-                        MaterialTheme.typography.bodyLarge
-                    },
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .alpha(if (isSelected) 1f else 0.72f)
-                        .padding(vertical = 8.dp),
+                        .matchParentSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        },
                 )
             }
         }

@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
+import com.mkx.hrttracker.util.timeOfDayOrder
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -152,6 +154,68 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
         .filter { occurrence -> !occurrence.scheduledFor.isBefore(start) }
         .take(limit)
         .toList()
+}
+
+/**
+ * Every occurrence from [start] on, in order, with no horizon: it goes from one dosing
+ * medication day straight to the next, however far apart, as for a 13-week depot or a plan
+ * that starts next year. It ends at the archive cutoff, so an active plan's never ends.
+ */
+fun MedicationGroup.occurrencesInPlanWindowFrom(
+    start: LocalDateTime,
+): Sequence<MedicationGroupSlotOccurrence> {
+    val boundary = schedule.dayBoundary
+    // In the medication day's own order: with the day ending at 04:00, 01:00 is its last.
+    val slots = schedule.timeSlots.sortedBy { slot -> boundary.timeOfDayOrder(slot.time) }
+    if (slots.isEmpty()) {
+        return emptySequence()
+    }
+    val firstDay = maxOf(
+        medicationDay(start, boundary),
+        medicationDay(slots.minOf(MedicationGroupScheduleTime::effectiveFrom), boundary),
+    )
+    val archivedAt = archivedAtLocal
+    return schedule.dosingDaysFrom(firstDay)
+        .flatMap { day ->
+            slots.asSequence().map { slot ->
+                val date = if (boundary.isPastMidnight(slot.time)) day.plusDays(1) else day
+                slot to LocalDateTime.of(date, slot.time)
+            }
+        }
+        .takeWhile { (_, scheduledFor) -> archivedAt == null || scheduledFor.isBefore(archivedAt) }
+        .filter { (slot, scheduledFor) ->
+            !scheduledFor.isBefore(start) && ownsUnloggedOccurrence(slot, scheduledFor)
+        }
+        .map { (slot, scheduledFor) ->
+            MedicationGroupSlotOccurrence(
+                groupUuid = uuid,
+                scheduleTimeUuid = slot.uuid,
+                scheduledFor = scheduledFor,
+            )
+        }
+}
+
+/** The medication days from [date] on that [isScheduledOn] holds, stepped to by the cadence. */
+private fun MedicationGroupSchedule.dosingDaysFrom(date: LocalDate): Sequence<LocalDate> {
+    val from = maxOf(date, since)
+    val period = interval.coerceAtLeast(1).toLong()
+    val elapsed = ChronoUnit.DAYS.between(since, from)
+    return when (type) {
+        MedicationGroupScheduleType.DAILY ->
+            generateSequence(Math.floorDiv(elapsed + period - 1, period)) { cycle -> cycle + 1 }
+                .map { cycle -> since.plusDays(cycle * period) }
+
+        // Each dosing week holds every weekday, so a plan with any day finds one in each.
+        MedicationGroupScheduleType.WEEKLY -> if (weeklyDaysOfWeek.isEmpty()) {
+            emptySequence()
+        } else {
+            generateSequence(Math.floorDiv(elapsed, 7 * period)) { cycle -> cycle + 1 }
+                .flatMap { cycle ->
+                    (0L until 7L).asSequence().map { offset -> since.plusDays(cycle * 7 * period + offset) }
+                }
+                .filter { day -> !day.isBefore(from) && day.dayOfWeek in weeklyDaysOfWeek }
+        }
+    }
 }
 
 fun MedicationGroup.ownsUnloggedOccurrence(

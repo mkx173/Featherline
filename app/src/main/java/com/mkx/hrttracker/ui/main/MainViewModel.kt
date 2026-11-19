@@ -74,7 +74,7 @@ class MainViewModel @Inject constructor(
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
     private val e2EstimateRepository: E2EstimateRepository,
     @ProcessLifecycleState processLifecycleState: StateFlow<@JvmSuppressWildcards Lifecycle.State>,
-    appTimeSource: AppTimeSource,
+    private val appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
@@ -298,15 +298,6 @@ class MainViewModel @Inject constructor(
     // any non-configChanges) recreation would replay the retained intent.
     private var lastHandledMilestonesSignal = 0
 
-    // True once an onCreate has parsed its launch intent. ViewModel-lifetime on purpose
-    // (same rationale as lastHandledMilestonesSignal): survives a config recreation, so
-    // the retained intent's widget extras are not replayed and cannot yank the user back
-    // to a deep link they navigated away from — but resets on process death, so a widget
-    // or shortcut tap that recreates a killed task (which lands in onCreate with a
-    // non-null savedInstanceState, because a dead instance can never receive onNewIntent)
-    // still parses the fresh intent and navigates.
-    var launchIntentParsed = false
-
     fun setScreenVisible(visible: Boolean) {
         screenVisible.value = visible
     }
@@ -335,9 +326,12 @@ class MainViewModel @Inject constructor(
         _homeDeepLinkSignal.update { it + 1 }
     }
 
-    /** For a Home deep link the user didn't follow, kept editing instead. */
-    fun dropHighlightRequest() {
-        _highlightRequest.value = null
+    /**
+     * For the Home deep link [signal] the user didn't follow, kept editing instead: its request
+     * only, which a newer link's has replaced if the signal has moved on since.
+     */
+    fun dropHighlightRequest(signal: Int) {
+        if (_homeDeepLinkSignal.value == signal) _highlightRequest.value = null
     }
 
     fun consumeHighlightRequest(request: DoseRowHighlightRequest) {
@@ -437,6 +431,8 @@ class MainViewModel @Inject constructor(
             option = chartWindowOption,
         )
 
+        // Which pass of a fall-back hour `now` is on, for every due and late test below.
+        val clockNow = appTimeSource.now()
         val doseSections = buildMainDoseSections(
             groups = scheduleGroups,
             entries = visibleEntries,
@@ -445,6 +441,7 @@ class MainViewModel @Inject constructor(
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
             allGroups = allGroups,
+            clockNow = clockNow,
         )
 
         return MainUiState(
@@ -480,6 +477,7 @@ class MainViewModel @Inject constructor(
                 displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,
                 now = now,
+                clockNow = clockNow,
             ),
             e2Chart = buildMainE2Chart(
                 trendResult = trendResult,
@@ -497,6 +495,7 @@ class MainViewModel @Inject constructor(
                     now = now,
                     zoneId = zoneId,
                     category = category,
+                    clockNow = clockNow,
                 )
                 cards.takeIf { it.isNotEmpty() }
                     ?.let { MainMedicationCategorySection(category = category, cards = it) }

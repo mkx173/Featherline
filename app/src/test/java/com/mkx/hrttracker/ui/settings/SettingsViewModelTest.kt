@@ -3,8 +3,15 @@ package com.mkx.hrttracker.ui.settings
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupExportedFile
+import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
+import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportFatalException
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
@@ -21,9 +28,10 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
@@ -39,10 +47,14 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -64,6 +76,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -78,7 +91,6 @@ class SettingsViewModelTest {
     }
     private val appLockSecurityManager: AppLockSecurityManager = mockk(relaxed = true)
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val backupExportService: BackupExportService = mockk()
     private val backupRestoreService: BackupRestoreService = mockk()
     private val externalImportService: ExternalImportService = mockk()
@@ -105,7 +117,7 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setHazeBlurEnabled(any()) } just Runs
         coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { backupExportService.discardAbandonedPreparedBackups() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
                 "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
         every { widgetAppearanceRepository.effectiveFor(null) } returns
@@ -115,6 +127,19 @@ class SettingsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun uiState_startsFromTheSettingsAlreadyRead_soTheLanguageRowShowsFollowSystemFirst() = runTest {
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(appLanguageOption = AppLanguageOption.CANTONESE, appLanguageFollowsSystem = true)
+        )
+
+        // Before the combine's first value (which waits on reads).
+        val settings = createViewModel().uiState.value.settingsState
+
+        assertEquals(AppLanguageOption.CANTONESE, settings.appLanguageOption)
+        assertTrue(settings.appLanguageFollowsSystem)
     }
 
     @Test
@@ -172,18 +197,6 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.pendingPreparedBackupExport)
-    }
-
-    @Test
-    fun validateBackupFile_delegatesToBackupRestoreService() = runTest {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        val uri: Uri = mockk()
-        coEvery { backupRestoreService.validateBackupFile(uri) } just Runs
-
-        viewModel.validateBackupFile(uri)
-
-        coVerify(exactly = 1) { backupRestoreService.validateBackupFile(uri) }
     }
 
     @Test
@@ -351,8 +364,30 @@ class SettingsViewModelTest {
         viewModel.disableHealthConnectWeightSync()
         advanceUntilIdle()
 
-        // Turns the flag off, clears the reading's date, and resets the daily gate under one lock.
+        // Turns the flag off and resets the daily gate under one lock.
         coVerify(exactly = 1) { healthConnectCapabilityReconciler.disableSync() }
+    }
+
+    @Test
+    fun setWeightUnit_convertsTheStoredWeight_asAWeightMutation() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val allowWriteToFinish = CompletableDeferred<Unit>()
+        coEvery { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) } coAnswers {
+            allowWriteToFinish.await()
+        }
+
+        viewModel.setWeightUnit(WeightUnit.POUNDS)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isWeightMutationInProgress)
+        verify(exactly = 0) { healthConnectCapabilityReconciler.requestReconcile(any(), any()) }
+
+        allowWriteToFinish.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+        coVerify(exactly = 1) { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) }
+        // Then a sync past the burst guard rewrites it from Health Connect's own value.
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", true) }
     }
 
     @Test
@@ -403,6 +438,7 @@ class SettingsViewModelTest {
         } coAnswers {
             restoreStarted.complete(Unit)
             allowRestoreToFinish.await()
+            BackupRestoreOutcome.RESTORED
         }
 
         viewModel.setPendingRestoreRequest(
@@ -427,7 +463,198 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setRemindersEnabled_clearsSnoozesWhenDisablingMasterSwitch() = runTest {
+    fun requestBackupRestore_reportsRestoredDataWhenOnlyAFollowUpFailed() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery {
+            backupRestoreService.restoreBackupBytes(any(), "password")
+        } returns BackupRestoreOutcome.FOLLOW_UP_FAILED
+        viewModel.setPendingRestoreRequest(
+            fileUri = mockk(),
+            displayName = "backup.json",
+            encryptedBytes = byteArrayOf(1),
+        )
+        advanceUntilIdle()
+
+        viewModel.requestBackupRestore("password")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupRestoreEvent.FollowUpFailed),
+            viewModel.backupRestoreEvents.replayCache,
+        )
+    }
+
+    @Test
+    fun requestBackupRestore_reportsACancellationExceptionThatIsNotACancelAsAFailure() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = CancellationException("datastore scope")
+        coEvery { backupRestoreService.restoreBackupBytes(any(), "password") } throws failure
+        viewModel.setPendingRestoreRequest(
+            fileUri = mockk(),
+            displayName = "backup.json",
+            encryptedBytes = byteArrayOf(1),
+        )
+        advanceUntilIdle()
+
+        viewModel.requestBackupRestore("password")
+        advanceUntilIdle()
+
+        // viewModelScope is still active, so the dialog closes with a message, not silently.
+        val event = viewModel.backupRestoreEvents.replayCache.single() as BackupRestoreEvent.Failure
+        assertSame(failure, event.error)
+        assertFalse(viewModel.uiState.value.isBackupRestoreInProgress)
+    }
+
+    @Test
+    fun requestBackupExport_handsThePreparedBackupToTheFolderPicker() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupExportEvent.ChooseDirectory),
+            viewModel.backupExportEvents.replayCache,
+        )
+        assertEquals(
+            preparedExport.tempFilePath,
+            viewModel.uiState.value.pendingPreparedBackupExport?.tempFilePath,
+        )
+        assertFalse(viewModel.uiState.value.isBackupExportInProgress)
+    }
+
+    @Test
+    fun requestBackupExport_cancelledReportsNoFailure() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prepareStarted = CompletableDeferred<Unit>()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } coAnswers {
+            prepareStarted.complete(Unit)
+            awaitCancellation()
+        }
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        assertTrue("the export runs in the ViewModel", prepareStarted.isCompleted)
+        // The ViewModel is cleared mid-export: its activity finished.
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertEquals(
+            "events of a cancelled export",
+            emptyList<BackupExportEvent>(),
+            viewModel.backupExportEvents.replayCache,
+        )
+    }
+
+    @Test
+    fun requestBackupExport_aRepeatSubmitStartsNoSecondExport() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val finishPreparing = CompletableDeferred<Unit>()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } coAnswers {
+            finishPreparing.await()
+            preparedExport
+        }
+
+        // A second tap or IME Done before the dialog's next frame: it still looks idle.
+        viewModel.requestBackupExport("password")
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        finishPreparing.complete(Unit)
+        advanceUntilIdle()
+        // Prepared and waiting for the folder picker: still no second export.
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupExportService.prepareBackupExport("password", any()) }
+    }
+
+    @Test
+    fun onBackupDirectoryChosen_writesThePreparedBackupAndReportsItsName() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val directoryUri: Uri = mockk()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+        coEvery {
+            backupExportService.exportPreparedBackup(directoryUri, preparedExport)
+        } returns BackupExportedFile(displayName = preparedExport.displayName, uri = mockk())
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        viewModel.consumeBackupExportEvent()
+
+        viewModel.onBackupDirectoryChosen(directoryUri)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupExportEvent.Success(preparedExport.displayName)),
+            viewModel.backupExportEvents.replayCache,
+        )
+        assertNull(viewModel.uiState.value.pendingPreparedBackupExport)
+        assertFalse(viewModel.uiState.value.isBackupExportInProgress)
+    }
+
+    @Test
+    fun requestBackupExport_aFolderPickerThatFailsToOpenDiscardsTheExport() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+        coEvery { backupExportService.discardPreparedBackup(preparedExport) } returns true
+        // The screen answers at once: the folder picker failed to open, so it hands the
+        // prepared backup back.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.backupExportEvents.collect { event ->
+                if (event == BackupExportEvent.ChooseDirectory) {
+                    viewModel.onBackupDirectoryChosen(null)
+                }
+            }
+        }
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        assertNull(
+            "the prepared export the picker never got",
+            viewModel.uiState.value.pendingPreparedBackupExport,
+        )
+        coVerify(exactly = 1) { backupExportService.discardPreparedBackup(preparedExport) }
+    }
+
+    @Test
+    fun onCleared_discardsAPreparedExportThePickerNeverAnswered() = runTest {
+        val tempFile = File.createTempFile("prepared-backup-", ".tmp").apply { deleteOnExit() }
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns
+                preparedExport.copy(tempFilePath = tempFile.absolutePath)
+        val store = ViewModelStore()
+        val viewModel = ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    createViewModel() as T
+            },
+        )[SettingsViewModel::class.java]
+        advanceUntilIdle()
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        // The activity finishes while the folder picker is open.
+        store.clear()
+
+        assertFalse("the prepared backup no screen can finish", tempFile.exists())
+    }
+
+    private val preparedExport = PreparedBackupExport(
+        displayName = "featherline-backup-2026-11-08_12-00-00.hrtbackup",
+        tempFilePath = "/cache/prepared-backup-1.tmp",
+    )
+
+    @Test
+    fun setRemindersEnabled_reschedulesWhenDisablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
@@ -435,12 +662,48 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test
-    fun setRemindersEnabled_keepsSnoozesWhenEnablingMasterSwitch() = runTest {
+    fun setHideMedicationDetails_repostsTheRemindersOnScreen() = runTest {
+        coEvery { settingsRepository.setHideMedicationDetails(any()) } just Runs
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setHideMedicationDetails(true)
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            settingsRepository.setHideMedicationDetails(true)
+            medicationReminderScheduler.refreshDoseReminderNotifications()
+        }
+    }
+
+    @Test
+    fun setHideMedicationDetails_theRepostOutlivesSettings() = runTest {
+        coEvery { settingsRepository.setHideMedicationDetails(any()) } just Runs
+        val repostGate = CompletableDeferred<Unit>()
+        var reposted = false
+        coEvery { medicationReminderScheduler.refreshDoseReminderNotifications() } coAnswers {
+            repostGate.await()
+            reposted = true
+        }
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setHideMedicationDetails(true)
+        runCurrent()
+        // Settings' owner goes, as when its activity finishes, while the reminders are reposted.
+        viewModel.viewModelScope.cancel()
+        repostGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reminders on screen were reposted", reposted)
+    }
+
+    @Test
+    fun setRemindersEnabled_reschedulesWhenEnablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
@@ -448,7 +711,51 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
-        coVerify(exactly = 0) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun setRemindersEnabled_marksAReconcileFirstAndFinishesItOnceTheOwnerIsGone() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
+        val rescheduleGate = CompletableDeferred<Unit>()
+        var rescheduled = false
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
+            rescheduleGate.await()
+            rescheduled = true
+        }
+
+        viewModel.setRemindersEnabled(true)
+        runCurrent()
+        // Settings' owner goes, as when its activity finishes, while the alarms are set.
+        viewModel.viewModelScope.cancel()
+        rescheduleGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reschedule outlives Settings", rescheduled)
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            settingsRepository.setRemindersEnabled(true)
+            // Before the pass, so the pass may settle it.
+            reconcileMark.committed()
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    // Still active, the exception is the mark store's own: the toggle goes ahead without a mark.
+    @Test
+    fun setRemindersEnabled_goesOnWhenItsMarksStoreThrowsACancellationException() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws
+            CancellationException("datastore scope")
+
+        viewModel.setRemindersEnabled(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -474,30 +781,33 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setRemindersEnabled_snoozeClearFailureDoesNotEmitSettingFailureEvent() = runTest {
+    fun setReminderRepeats_storesThemThenReschedulesEveryPlan() = runTest {
+        coEvery { settingsRepository.setReminderRepeats(any()) } just Runs
         val viewModel = createViewModel()
         advanceUntilIdle()
-        var clearAttempted = false
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } coAnswers {
-            clearAttempted = true
-            throw IllegalStateException("snooze clear failed")
-        }
-        val events = mutableListOf<SettingsMutationEvent>()
-        backgroundScope.launch {
-            viewModel.settingsMutationEvents.collect { event -> events += event }
-        }
-        runCurrent()
 
-        viewModel.setRemindersEnabled(false)
+        viewModel.setReminderRepeats(ReminderRepeats(count = 2, intervalMinutes = 30))
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        // The snooze-clear failure must not bail out of the launch block:
-        // rescheduleAll still has to run afterward.
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        assertTrue(clearAttempted)
-        assertTrue(events.isEmpty())
+        coVerifyOrder {
+            settingsRepository.setReminderRepeats(ReminderRepeats(count = 2, intervalMinutes = 30))
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
+    fun setReminderRepeats_aFailedWriteReschedulesNothingAndReportsIt() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(medicationReminderScheduler, answers = false, recordedCalls = true)
+        coEvery { settingsRepository.setReminderRepeats(any()) } throws IllegalStateException("disk full")
+        val event = backgroundScope.async { viewModel.settingsMutationEvents.first() }
+
+        viewModel.setReminderRepeats(ReminderRepeats(count = 0, intervalMinutes = 15))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(event.await() is SettingsMutationEvent.Failure)
     }
 
     @Test
@@ -514,6 +824,21 @@ class SettingsViewModelTest {
             settingsRepository.setScreenLockProtectionEnabled(true)
             settingsRepository.setHideScreenContentEnabled(true)
         }
+    }
+
+    // After process death, a redelivered PIN success has no request to say what it was for:
+    // it writes nothing, rather than taking it for an enable (and turning hide-content on).
+    @Test
+    fun lockToggleSuccess_withNoRequest_writesNothing() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(settingsRepository, answers = false, recordedCalls = true)
+
+        viewModel.onScreenLockProtectionAuthenticated()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { settingsRepository.setScreenLockProtectionEnabled(any()) }
+        coVerify(exactly = 0) { settingsRepository.setHideScreenContentEnabled(any()) }
     }
 
     @Test
@@ -628,7 +953,6 @@ class SettingsViewModelTest {
             bloodTestRepository = bloodTestRepository,
             appLockSecurityManager = appLockSecurityManager,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
             externalImportService = externalImportService,

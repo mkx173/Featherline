@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
@@ -12,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -56,13 +56,11 @@ import java.time.Instant
 import java.util.UUID
 
 class MedicineRepositoryTest {
-    private val context: Context = mockk()
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
     private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
-    private val duplicateMedicineMessage = "Medicine already exists."
 
     private lateinit var appScope: CoroutineScope
     private lateinit var repository: MedicineRepository
@@ -71,10 +69,7 @@ class MedicineRepositoryTest {
     fun setUp() {
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         mockkObject(ToastManager)
-        every { ToastManager.showMessage(any()) } just Runs
-
-        every { context.getString(R.string.medicine_already_exists) } returns
-                duplicateMedicineMessage
+        every { ToastManager.showMessageRes(any()) } just Runs
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicineDao() } returns dao
@@ -86,7 +81,6 @@ class MedicineRepositoryTest {
         }
 
         repository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -129,7 +123,7 @@ class MedicineRepositoryTest {
             now = Instant.ofEpochMilli(500),
         )
 
-        verify(exactly = 1) { ToastManager.showMessage(duplicateMedicineMessage) }
+        verify(exactly = 1) { ToastManager.showMessageRes(R.string.medicine_already_exists) }
     }
 
     @Test
@@ -165,7 +159,7 @@ class MedicineRepositoryTest {
             now = now,
         )
 
-        verify(exactly = 0) { ToastManager.showMessage(any()) }
+        verify(exactly = 0) { ToastManager.showMessageRes(any()) }
     }
 
     @Test
@@ -369,7 +363,6 @@ class MedicineRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
         every { dao.observeAllActive() } returns MutableStateFlow(listOf(entity))
         val repository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -579,6 +572,117 @@ class MedicineRepositoryTest {
 
         coVerify(exactly = 0) {
             stockMutator.clearStockOnPreparationEdit(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun updatePreparation_shrinkingATrackedVialBelowItsOpenAmount_refusesAndKeepsStock() = runTest {
+        // 8 mL left in a 10 mL vial: a 5 mL vial can't hold it, and the next dose would
+        // split the stock into one vial more than exists. The user recounts first.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 8.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        assertThrows(MedicineContainerOverfullException::class.java) {
+            kotlinx.coroutines.test.runTest {
+                repository.updatePreparation(
+                    uuid = uuid,
+                    preparation = MedicinePreparation.InjectionMultiUseVial(
+                        concentrationMgPerMl = 40.0,
+                        vialVolumeMl = 5.0,
+                    ),
+                    now = Instant.parse("2026-11-08T00:00:00Z"),
+                )
+            }
+        }
+        coVerify(exactly = 0) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+        coVerify(exactly = 0) {
+            dao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun updatePreparation_unchangedOnAnOverfullOrLockedMedicine_writesNothingAndRefusesNothing() = runTest {
+        // The merged sheet sends the untouched preparation with a rename. 12 mL in a 10 mL vial
+        // (a bad restore or legacy data) and a record logged since the sheet opened would each
+        // refuse a changed preparation; the unchanged one must pass, so the rename stands alone.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 12.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 1
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 10.0,
+            ),
+            displayDoseUnit = MedicineDisplayDoseUnit.MG,
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 0) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+    }
+
+    @Test
+    fun updatePreparation_unchangedPreparationWithANewDisplayUnit_writesTheUnit() = runTest {
+        // Same 2 mg tablet, now shown in mcg: the unit is a change and must be written.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns medicineEntity(uuid = uuid.toString())
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            displayDoseUnit = MedicineDisplayDoseUnit.MCG,
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 1) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), MedicineDisplayDoseUnit.MCG.name, any(), any(),
+            )
+        }
+    }
+
+    @Test
+    fun updatePreparation_resizingATrackedVialThatStillHoldsItsOpenAmount_saves() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 5.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 1) {
+            dao.updatePreparationFields(
+                uuid.toString(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
         }
     }
 
@@ -873,7 +977,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns medicinesSource
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -923,7 +1026,6 @@ class MedicineRepositoryTest {
         }
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -959,7 +1061,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -990,7 +1091,6 @@ class MedicineRepositoryTest {
         }
 
         MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1017,7 +1117,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns MutableStateFlow(listOf(tracked, untracked))
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1053,7 +1152,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1089,7 +1187,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns medicinesSource
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1141,7 +1238,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1174,7 +1270,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1218,6 +1313,28 @@ class MedicineRepositoryTest {
             createdAtEpochMillis = 100,
             updatedAtEpochMillis = 200,
             archivedAtEpochMillis = archivedAtEpochMillis,
+        )
+    }
+
+    // A tracked 10 mL multi-use vial: [openMl] in the open vial and two sealed ones.
+    private fun trackedVialEntity(uuid: UUID, openMl: Double): MedicineEntity {
+        return medicineEntity(uuid = uuid.toString()).copy(
+            medicationKey = MedicationKey.ESTRADIOL_VALERATE.name,
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL.name,
+            strengthMgPerTablet = null,
+            concentrationMgPerMl = 40.0,
+            vialVolumeMl = 10.0,
+            identityKey = MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 40.0,
+                    vialVolumeMl = 10.0,
+                ),
+            ),
+            trackingEnabled = true,
+            stockUnitsRemaining = 2.0,
+            stockUnitsLastTotal = 3.0,
+            openContainerAmount = openMl,
         )
     }
 

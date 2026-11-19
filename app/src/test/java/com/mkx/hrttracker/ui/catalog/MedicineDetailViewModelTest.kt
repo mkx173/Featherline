@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.catalog
 
 import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicineContainerOverfullException
 import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
@@ -597,6 +598,37 @@ class MedicineDetailViewModelTest {
         coVerify(exactly = 1) { medicineRepository.setDisplayName(medicine.uuid, "New name", any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         assertEquals(MedicineDetailSaveResult.FAILURE_LOCKED, viewModel.uiState.value.saveResult)
+    }
+
+    @Test
+    fun saveAllReportsAContainerSizeThatCanNotHoldTheOpenAmount() = runTest {
+        val medicine = testMedicine()
+        every { medicineRepository.observeByUuid(medicine.uuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicine.uuid) } returns false
+        coEvery { medicineRepository.updatePreparation(medicine.uuid, any(), any(), any()) } throws
+                MedicineContainerOverfullException(medicine.uuid)
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicine.uuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.saveAll(
+            MedicinePreparation.InjectionMultiUseVial(concentrationMgPerMl = 40.0, vialVolumeMl = 5.0),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            MedicineDetailSaveResult.FAILURE_CONTAINER_OVERFULL,
+            viewModel.uiState.value.saveResult,
+        )
     }
 
     // Why this matters: the lock state is the editor's gate-keeper — if it
