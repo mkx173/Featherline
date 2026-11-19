@@ -104,7 +104,13 @@ internal fun ReminderRepeatsPickerDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     PickerWheel(options = countLabels, state = countState, modifier = Modifier.weight(1f))
-                    PickerWheel(options = intervalLabels, state = intervalState, modifier = Modifier.weight(1f))
+                    // With repeats off there is nothing to space apart.
+                    PickerWheel(
+                        options = intervalLabels,
+                        state = intervalState,
+                        modifier = Modifier.weight(1f),
+                        enabled = counts[countState.index] != 0,
+                    )
                 }
             }
         },

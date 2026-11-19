@@ -50,6 +50,25 @@ class ReminderRepeatsPickerTest {
         assertEquals(ReminderRepeats(count = 1, intervalMinutes = 30), confirmed)
     }
 
+    // With repeats Off the interval wheel is disabled: a tap on another interval turns nothing.
+    @Test
+    fun withRepeatsOff_theIntervalWheelIgnoresTaps() {
+        var confirmed: ReminderRepeats? = null
+        composeRule.setContent {
+            ReminderRepeatsPickerDialog(
+                repeats = ReminderRepeats(count = 0, intervalMinutes = 15),
+                onDismiss = {},
+                onConfirm = { confirmed = it },
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(intervalLabel(20)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(confirm).performClick()
+
+        assertEquals(ReminderRepeats(count = 0, intervalMinutes = 15), confirmed)
+    }
+
     // Reopened on the old value, the count wheel turned to 4, then the earlier save lands: the
     // turned wheel keeps 4 and the untouched interval wheel keeps what it showed.
     @Test

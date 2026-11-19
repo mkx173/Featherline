@@ -1148,7 +1148,12 @@ internal fun SettingsScreenContent(
                         )
                     }
 
-                    animatedItem(visible = settingsState.remindersEnabled && hasNotificationAccess) {
+                    // The same condition as the switch and the exact-alarm message, so this row and
+                    // that message expand on the same frame, as one motion.
+                    animatedItem(
+                        visible = (settingsState.remindersEnabled || isReminderEnablePending) &&
+                            hasNotificationAccess
+                    ) {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_reminder_repeats),
                             supportingText = reminderRepeatsLabel(settingsState.reminderRepeats),
@@ -1162,24 +1167,25 @@ internal fun SettingsScreenContent(
                         )
                     }
 
-                    if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
-                        item {
-                            SettingsSupportMessage(
-                                text = stringResource(R.string.settings_reminders_notifications_unavailable),
-                                painter = painterResource(R.drawable.ic_error_outline),
-                                onClick = onOpenNotificationSettings,
-                                showChevron = true,
-                            )
-                        }
-                    } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
-                        item {
-                            SettingsSupportMessage(
-                                text = stringResource(R.string.group_notifications_inexact_warning),
-                                painter = painterResource(R.drawable.ic_error_outline),
-                                onClick = { showExactAlarmRecoveryDialog = true },
-                                showChevron = true,
-                            )
-                        }
+                    animatedItem(
+                        visible = reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF
+                    ) {
+                        SettingsSupportMessage(
+                            text = stringResource(R.string.settings_reminders_notifications_unavailable),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            onClick = onOpenNotificationSettings,
+                            showChevron = true,
+                        )
+                    }
+                    animatedItem(
+                        visible = reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF
+                    ) {
+                        SettingsSupportMessage(
+                            text = stringResource(R.string.group_notifications_inexact_warning),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            onClick = { showExactAlarmRecoveryDialog = true },
+                            showChevron = true,
+                        )
                     }
                 }
 
